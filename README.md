@@ -118,13 +118,6 @@
 - **📚 完整文档**: 包括 API 文档、部署指南、用户手册等全部由 AI 生成
 - **🛠️ 运维脚本**: 部署、监控、备份等运维脚本均由 AI 自动化生成
 
-### 💡 技术实现亮点
-- **智能需求分析**: AI 理解中文需求并转化为技术实现
-- **最佳实践应用**: 自动应用行业最佳实践和设计模式
-- **错误处理**: 完善的错误处理和用户体验优化
-- **性能优化**: 自动优化数据库查询和前端性能
-- **安全考虑**: 内置安全机制和权限控制
-
 > **🎉 这是一个展示 AI 编程能力的完整项目案例，证明了 AI 可以独立完成复杂的全栈 Web 应用开发！**
 
 详细了解请查看 **[AI 开发详细说明](docs/AI-DEVELOPMENT.md)**
@@ -194,28 +187,7 @@ classroom-points-system/
 └── 📄 server.js             # 主服务器文件
 ```
 
-
-## 📚 详细文档
-
-- **[完整截图展示](docs/SCREENSHOTS.md)** - 更多系统界面截图
-- **[技术架构](docs/ARCHITECTURE.md)** - 系统架构和技术栈详解
-- **[AI开发说明](docs/AI-DEVELOPMENT.md)** - AI驱动开发详情
-- **[部署指南](docs/DEPLOYMENT.md)** - 生产环境部署指南
-- **[API文档](docs/API.md)** - 完整的接口文档
-- **[运维指南](docs/OPERATIONS.md)** - 监控和维护指南
-- **[故障排除](docs/TROUBLESHOOTING.md)** - 常见问题解决方案
-- **[开发指南](docs/DEVELOPMENT.md)** - 开发环境配置和贡献指南
-- **[更新日志](CHANGELOG.md)** - 版本更新记录
-
 ## 🤝 贡献指南
-
-### 传统开发贡献
-1. Fork 项目
-2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
-3. 运行测试 (`npm test`)
-4. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-5. 推送到分支 (`git push origin feature/AmazingFeature`)
-6. 打开 Pull Request
 
 ### AI 辅助开发
 本项目展示了 AI 编程的完整流程，如果你想了解或参与 AI 驱动的开发：
@@ -224,8 +196,6 @@ classroom-points-system/
 - **🤖 使用 AI 工具**: 尝试使用 AI 编程助手进行功能扩展
 - **📊 分析 AI 代码质量**: 评估 AI 生成代码的质量和最佳实践应用
 - **🚀 AI 功能增强**: 使用 AI 添加新功能或优化现有功能
-
-详细指南请查看 **[开发指南](docs/DEVELOPMENT.md)**
 
 ## 📄 许可证
 
