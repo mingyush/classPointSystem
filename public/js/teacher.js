@@ -158,7 +158,7 @@ function showLogoutState() {
 
     // 更新用户信息显示
     updateUserInfo();
-    
+
     // 禁用所有操作按钮
     disableAllControls();
 }
@@ -853,21 +853,49 @@ function renderOrdersList(filteredOrders = null) {
         return;
     }
 
-    container.innerHTML = ordersToShow.map(order => {
-        const student = students.find(s => s.id === order.studentId);
-        const product = products.find(p => p.id === order.productId);
+    container.innerHTML = ordersToShow.map(orderData => {
+        // 处理数据结构：如果是从API获取的详细数据，包含order、student、product字段
+        let order, student, product;
+
+        if (orderData.order && orderData.student && orderData.product) {
+            // 来自API的详细数据结构
+            order = orderData.order;
+            student = orderData.student;
+            product = orderData.product;
+        } else {
+            // 简单的订单数据结构，需要从本地数据中查找
+            order = orderData;
+            student = students.find(s => s.id === order.studentId);
+            product = products.find(p => p.id === order.productId);
+        }
 
         return `
             <div class="order-item">
                 <div class="order-info">
                     <div class="order-header">
-                        <span class="student-name">${student?.name || '未知学生'}</span>
+                        <span class="student-name">${student?.name || '未知学生'} (${student?.id || order.studentId})</span>
                         <span class="order-status status-${order.status}">${getStatusText(order.status)}</span>
                     </div>
                     <div class="order-details">
-                        商品: ${product?.name || '未知商品'} | 
-                        价格: ${product?.price || 0}分 | 
-                        预约时间: ${formatDate(order.reservedAt)}
+                        <div class="order-detail-row">
+                            <strong>商品:</strong> ${product?.name || '未知商品'}
+                        </div>
+                        <div class="order-detail-row">
+                            <strong>价格:</strong> ${product?.price || 0}分
+                        </div>
+                        <div class="order-detail-row">
+                            <strong>预约时间:</strong> ${formatDate(order.reservedAt)}
+                        </div>
+                        ${order.confirmedAt ? `
+                            <div class="order-detail-row">
+                                <strong>确认时间:</strong> ${formatDate(order.confirmedAt)}
+                            </div>
+                        ` : ''}
+                        ${order.cancelledAt ? `
+                            <div class="order-detail-row">
+                                <strong>取消时间:</strong> ${formatDate(order.cancelledAt)}
+                            </div>
+                        ` : ''}
                     </div>
                 </div>
                 <div class="order-actions">
@@ -899,13 +927,27 @@ function filterOrders() {
     let filtered = orders;
 
     if (statusFilter) {
-        filtered = filtered.filter(order => order.status === statusFilter);
+        filtered = filtered.filter(orderData => {
+            const order = orderData.order || orderData;
+            return order.status === statusFilter;
+        });
     }
 
     if (studentFilter) {
-        filtered = filtered.filter(order => {
-            const student = students.find(s => s.id === order.studentId);
-            return student && student.name.toLowerCase().includes(studentFilter);
+        filtered = filtered.filter(orderData => {
+            let student;
+            if (orderData.student) {
+                // 来自API的详细数据
+                student = orderData.student;
+            } else {
+                // 简单数据，需要查找
+                const order = orderData;
+                student = students.find(s => s.id === order.studentId);
+            }
+            return student && (
+                student.name.toLowerCase().includes(studentFilter) ||
+                student.id.toLowerCase().includes(studentFilter)
+            );
         });
     }
 
@@ -915,15 +957,26 @@ function filterOrders() {
 // 确认预约
 async function confirmOrder(orderId) {
     try {
-        await apiRequest(`/api/orders/${orderId}/confirm`, {
+        const response = await apiRequest(`/api/orders/${orderId}/confirm`, {
             method: 'POST'
         });
 
         // 更新本地数据
-        const orderIndex = orders.findIndex(o => o.id === orderId);
+        const orderIndex = orders.findIndex(orderData => {
+            const order = orderData.order || orderData;
+            return order.id === orderId;
+        });
+
         if (orderIndex !== -1) {
-            orders[orderIndex].status = 'confirmed';
-            orders[orderIndex].confirmedAt = new Date().toISOString();
+            if (orders[orderIndex].order) {
+                // 详细数据结构
+                orders[orderIndex].order.status = 'confirmed';
+                orders[orderIndex].order.confirmedAt = new Date().toISOString();
+            } else {
+                // 简单数据结构
+                orders[orderIndex].status = 'confirmed';
+                orders[orderIndex].confirmedAt = new Date().toISOString();
+            }
         }
 
         // 刷新显示
@@ -942,15 +995,26 @@ async function cancelOrder(orderId) {
     if (!confirm('确定要取消这个预约吗？')) return;
 
     try {
-        await apiRequest(`/api/orders/${orderId}/cancel`, {
+        const response = await apiRequest(`/api/orders/${orderId}/cancel`, {
             method: 'POST'
         });
 
         // 更新本地数据
-        const orderIndex = orders.findIndex(o => o.id === orderId);
+        const orderIndex = orders.findIndex(orderData => {
+            const order = orderData.order || orderData;
+            return order.id === orderId;
+        });
+
         if (orderIndex !== -1) {
-            orders[orderIndex].status = 'cancelled';
-            orders[orderIndex].cancelledAt = new Date().toISOString();
+            if (orders[orderIndex].order) {
+                // 详细数据结构
+                orders[orderIndex].order.status = 'cancelled';
+                orders[orderIndex].order.cancelledAt = new Date().toISOString();
+            } else {
+                // 简单数据结构
+                orders[orderIndex].status = 'cancelled';
+                orders[orderIndex].cancelledAt = new Date().toISOString();
+            }
         }
 
         // 刷新显示
@@ -1516,7 +1580,7 @@ function formatFileSize(bytes) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 //
- 显示需要登录的状态界面
+显示需要登录的状态界面
 function showLoginRequiredState() {
     const container = document.getElementById('teacherContent');
     if (container) {
@@ -1537,10 +1601,10 @@ function showLoginRequiredState() {
 
     // 更新用户信息显示
     updateUserInfo();
-    
+
     // 禁用所有操作按钮
     disableAllControls();
-    
+
     // 自动显示登录弹窗
     setTimeout(() => {
         if (typeof showTeacherLogin === 'function') {
@@ -1558,17 +1622,17 @@ function disableAllControls() {
         modeToggle.style.opacity = '0.5';
         modeToggle.style.cursor = 'not-allowed';
     }
-    
+
     // 禁用所有标签按钮
     document.querySelectorAll('.tab-button').forEach(btn => {
         btn.disabled = true;
         btn.style.opacity = '0.5';
         btn.style.cursor = 'not-allowed';
     });
-    
+
     // 禁用所有表单元素
     document.querySelectorAll('input, button, select, textarea').forEach(element => {
-        if (!element.classList.contains('login-btn') && 
+        if (!element.classList.contains('login-btn') &&
             !element.classList.contains('login-again-btn') &&
             !element.id.includes('teacher')) {
             element.disabled = true;
@@ -1586,14 +1650,14 @@ function enableAllControls() {
         modeToggle.style.opacity = '1';
         modeToggle.style.cursor = 'pointer';
     }
-    
+
     // 启用所有标签按钮
     document.querySelectorAll('.tab-button').forEach(btn => {
         btn.disabled = false;
         btn.style.opacity = '1';
         btn.style.cursor = 'pointer';
     });
-    
+
     // 启用所有表单元素
     document.querySelectorAll('input, button, select, textarea').forEach(element => {
         element.disabled = false;
