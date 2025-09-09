@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>教师登录测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .form-group { margin: 10px 0; }
+        label { display: block; margin-bottom: 5px; }
+        input { padding: 8px; width: 200px; }
+        button { padding: 10px 20px; margin: 5px; }
+        .result { margin-top: 20px; padding: 10px; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+    <h1>教师登录测试</h1>
+    
+    <form id="testForm">
+        <div class="form-group">
+            <label for="teacherId">教师ID:</label>
+            <input type="text" id="teacherId" value="8001" placeholder="输入教师ID">
+        </div>
+        <div class="form-group">
+            <label for="password">密码:</label>
+            <input type="password" id="password" value="123" placeholder="输入密码">
+        </div>
+        <button type="submit">测试登录</button>
+    </form>
+    
+    <div id="result" class="result" style="display: none;"></div>
+    
+    <script>
+        document.getElementById('testForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const teacherId = document.getElementById('teacherId').value;
+            const password = document.getElementById('password').value;
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                console.log('发送登录请求:', { teacherId, password });
+                
+                const response = await fetch('/api/auth/teacher-login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ teacherId, password })
+                });
+                
+                const data = await response.json();
+                
+                console.log('响应状态:', response.status);
+                console.log('响应数据:', data);
+                
+                resultDiv.style.display = 'block';
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <h3>登录成功!</h3>
+                        <p><strong>教师ID:</strong> ${data.data.teacher.id}</p>
+                        <p><strong>教师姓名:</strong> ${data.data.teacher.name}</p>
+                        <p><strong>Token:</strong> ${data.data.token.substring(0, 50)}...</p>
+                    `;
+                    resultDiv.style.backgroundColor = '#d4edda';
+                    resultDiv.style.color = '#155724';
+                } else {
+                    resultDiv.innerHTML = `
+                        <h3>登录失败!</h3>
+                        <p><strong>错误信息:</strong> ${data.message}</p>
+                        <p><strong>错误代码:</strong> ${data.code}</p>
+                    `;
+                    resultDiv.style.backgroundColor = '#f8d7da';
+                    resultDiv.style.color = '#721c24';
+                }
+                
+            } catch (error) {
+                console.error('请求失败:', error);
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `
+                    <h3>请求失败!</h3>
+                    <p><strong>错误:</strong> ${error.message}</p>
+                `;
+                resultDiv.style.backgroundColor = '#f8d7da';
+                resultDiv.style.color = '#721c24';
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>大屏展示 - 班级积分管理系统</title>
+    <link rel="stylesheet" href="/css/common.css">
+    <link rel="stylesheet" href="/css/display.css">
+    <link rel="stylesheet" href="/css/menu.css">
+</head>
+<body>
+    <div class="display-container">
+        <header>
+            <div class="header-left">
+                <h1>班级积分排行榜</h1>
+                <div class="mode-indicator" id="modeIndicator">平时模式</div>
+            </div>
+            <div class="header-right">
+                <div class="header-controls">
+                    <button id="modeToggle" class="mode-toggle-btn">切换模式</button>
+                    <a href="/" class="home-link">返回首页</a>
+                    <a href="/teacher" class="teacher-link">教师管理</a>
+                </div>
+                <div class="connection-status disconnected">连接中...</div>
+            </div>
+        </header>
+        
+        <main id="displayContent">
+            <!-- 内容将通过JavaScript动态加载 -->
+            <div class="loading">正在加载数据...</div>
+        </main>
+    </div>
+    
+    <script src="/js/common.js"></script>
+    <script src="/js/menu.js"></script>
+    <script src="/js/data-cache.js"></script>
+    <script src="/js/sse-client.js"></script>
+    <script src="/js/display.js"></script>
+</body>
+</html>

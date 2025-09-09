@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>教师管理 - 班级积分管理系统</title>
+    <link rel="stylesheet" href="/css/common.css">
+    <link rel="stylesheet" href="/css/teacher.css">
+    <link rel="stylesheet" href="/css/menu.css">
+</head>
+<body>
+    <div class="teacher-container">
+        <header>
+            <div class="header-left">
+                <h1>教师管理面板</h1>
+                <div class="user-info" id="userInfo">
+                    <span class="user-name">未登录</span>
+                </div>
+            </div>
+            <div class="header-controls">
+                <button id="modeToggle" class="mode-toggle">切换到上课模式</button>
+                <a href="/display" class="display-link">大屏展示</a>
+                <a href="/" class="back-link">返回首页</a>
+                <button id="logoutBtn" class="logout-btn">退出登录</button>
+            </div>
+        </header>
+        
+        <main id="teacherContent">
+            <!-- 内容将通过JavaScript动态加载 -->
+            <div class="loading">正在加载数据...</div>
+        </main>
+    </div>
+    
+    <script src="/js/common.js"></script>
+    <script src="/js/menu.js"></script>
+    <script src="/js/teacher.js"></script>
+</body>
+</html>

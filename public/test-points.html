@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>积分操作测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        button { padding: 8px 15px; margin: 5px; }
+        .result { margin: 10px 0; padding: 10px; background: #f5f5f5; }
+    </style>
+</head>
+<body>
+    <h1>积分操作测试</h1>
+    
+    <div class="test-section">
+        <h3>1. 教师登录</h3>
+        <input type="text" id="teacherId" placeholder="教师ID" value="8001">
+        <input type="password" id="password" placeholder="密码" value="123">
+        <button onclick="teacherLogin()">登录</button>
+        <div id="loginResult" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>2. 积分操作测试</h3>
+        <input type="text" id="studentId" placeholder="学号" value="0501">
+        <input type="number" id="points" placeholder="积分" value="5">
+        <button onclick="testAddPoints()">加分</button>
+        <button onclick="testSubtractPoints()">减分</button>
+        <div id="pointsResult" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>3. 获取学生信息</h3>
+        <button onclick="getStudentInfo()">获取学生0501信息</button>
+        <div id="studentResult" class="result"></div>
+    </div>
+
+    <script>
+        let token = null;
+
+        async function teacherLogin() {
+            const teacherId = document.getElementById('teacherId').value;
+            const password = document.getElementById('password').value;
+            const resultDiv = document.getElementById('loginResult');
+
+            try {
+                const response = await fetch('/api/auth/teacher-login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ teacherId, password })
+                });
+
+                const data = await response.json();
+                console.log('登录响应:', data);
+
+                if (response.ok) {
+                    token = data.data.token;
+                    resultDiv.innerHTML = `<strong>登录成功!</strong><br>Token: ${token.substring(0, 50)}...`;
+                    resultDiv.style.color = 'green';
+                } else {
+                    resultDiv.innerHTML = `<strong>登录失败:</strong> ${data.message}`;
+                    resultDiv.style.color = 'red';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<strong>请求失败:</strong> ${error.message}`;
+                resultDiv.style.color = 'red';
+            }
+        }
+
+        async function testAddPoints() {
+            if (!token) {
+                alert('请先登录');
+                return;
+            }
+
+            const studentId = document.getElementById('studentId').value;
+            const points = parseInt(document.getElementById('points').value);
+            const resultDiv = document.getElementById('pointsResult');
+
+            try {
+                const response = await fetch('/api/points/add', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        studentId,
+                        points,
+                        reason: '测试加分'
+                    })
+                });
+
+                const data = await response.json();
+                console.log('加分响应:', data);
+
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <strong>加分成功!</strong><br>
+                        学号: ${studentId}<br>
+                        加分: ${points}分<br>
+                        新余额: ${data.data?.newBalance || '未知'}分<br>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                    resultDiv.style.color = 'green';
+                } else {
+                    resultDiv.innerHTML = `<strong>加分失败:</strong> ${data.message}`;
+                    resultDiv.style.color = 'red';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<strong>请求失败:</strong> ${error.message}`;
+                resultDiv.style.color = 'red';
+            }
+        }
+
+        async function testSubtractPoints() {
+            if (!token) {
+                alert('请先登录');
+                return;
+            }
+
+            const studentId = document.getElementById('studentId').value;
+            const points = parseInt(document.getElementById('points').value);
+            const resultDiv = document.getElementById('pointsResult');
+
+            try {
+                const response = await fetch('/api/points/subtract', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        studentId,
+                        points,
+                        reason: '测试减分'
+                    })
+                });
+
+                const data = await response.json();
+                console.log('减分响应:', data);
+
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <strong>减分成功!</strong><br>
+                        学号: ${studentId}<br>
+                        减分: ${points}分<br>
+                        新余额: ${data.data?.newBalance || '未知'}分<br>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                    resultDiv.style.color = 'green';
+                } else {
+                    resultDiv.innerHTML = `<strong>减分失败:</strong> ${data.message}`;
+                    resultDiv.style.color = 'red';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<strong>请求失败:</strong> ${error.message}`;
+                resultDiv.style.color = 'red';
+            }
+        }
+
+        async function getStudentInfo() {
+            if (!token) {
+                alert('请先登录');
+                return;
+            }
+
+            const resultDiv = document.getElementById('studentResult');
+
+            try {
+                const response = await fetch('/api/students/0501', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json();
+                console.log('学生信息响应:', data);
+
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <strong>学生信息:</strong><br>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                    resultDiv.style.color = 'green';
+                } else {
+                    resultDiv.innerHTML = `<strong>获取失败:</strong> ${data.message}`;
+                    resultDiv.style.color = 'red';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<strong>请求失败:</strong> ${error.message}`;
+                resultDiv.style.color = 'red';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>教师商品管理测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .product-item { border: 1px solid #ddd; margin: 10px 0; padding: 10px; }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <h1>教师商品管理测试</h1>
+    
+    <div id="status">正在加载...</div>
+    
+    <div id="products-list"></div>
+    
+    <script>
+        async function testProductsAPI() {
+            try {
+                const response = await fetch('/api/products');
+                const data = await response.json();
+                
+                document.getElementById('status').innerHTML = 
+                    `<div class="success">API调用成功！找到 ${data.data?.products?.length || 0} 个商品</div>`;
+                
+                const products = data.data?.products || [];
+                const container = document.getElementById('products-list');
+                
+                if (products.length === 0) {
+                    container.innerHTML = '<div class="error">没有找到商品数据</div>';
+                    return;
+                }
+                
+                container.innerHTML = products.map(product => `
+                    <div class="product-item">
+                        <h3>${product.name}</h3>
+                        <p>价格: ${product.price}分 | 库存: ${product.stock}个</p>
+                        <p>描述: ${product.description}</p>
+                        <p>状态: ${product.isActive ? '启用' : '禁用'}</p>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                document.getElementById('status').innerHTML = 
+                    `<div class="error">API调用失败: ${error.message}</div>`;
+                console.error('测试失败:', error);
+            }
+        }
+        
+        // 页面加载时执行测试
+        testProductsAPI();
+    </script>
+</body>
+</html>

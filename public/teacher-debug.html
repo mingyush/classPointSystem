@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>教师管理调试版</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .login-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+        .login-modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            width: 400px;
+            max-width: 90%;
+        }
+        .form-group { margin: 15px 0; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-group input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+        .form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+        .form-actions button { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
+        button[type="submit"] { background-color: #667eea; color: white; }
+        button[type="button"] { background-color: #6c757d; color: white; }
+        .login-tips { margin: 10px 0; text-align: center; }
+        .login-tips small { color: #666; font-size: 12px; }
+        .message { position: fixed; top: 20px; right: 20px; padding: 15px 20px; border-radius: 5px; color: white; font-weight: bold; z-index: 1000; }
+        .message-success { background-color: #28a745; }
+        .message-error { background-color: #dc3545; }
+        .message-warning { background-color: #ffc107; color: #212529; }
+    </style>
+</head>
+<body>
+    <h1>教师管理调试版</h1>
+    <p>这是一个简化的教师登录测试页面</p>
+    
+    <div id="content">
+        <button onclick="showLogin()">显示登录弹窗</button>
+        <div id="status"></div>
+    </div>
+
+    <script>
+        // 简化的存储工具
+        const storage = {
+            set(key, value) {
+                try {
+                    localStorage.setItem(key, JSON.stringify(value));
+                } catch (error) {
+                    console.error('存储数据失败:', error);
+                }
+            },
+            get(key) {
+                try {
+                    const item = localStorage.getItem(key);
+                    return item ? JSON.parse(item) : null;
+                } catch (error) {
+                    console.error('读取数据失败:', error);
+                    return null;
+                }
+            },
+            remove(key) {
+                try {
+                    localStorage.removeItem(key);
+                } catch (error) {
+                    console.error('删除数据失败:', error);
+                }
+            }
+        };
+
+        // 显示消息
+        function showMessage(message, type = 'info') {
+            const messageEl = document.createElement('div');
+            messageEl.className = `message message-${type}`;
+            messageEl.textContent = message;
+            document.body.appendChild(messageEl);
+            
+            setTimeout(() => {
+                if (messageEl.parentNode) {
+                    messageEl.parentNode.removeChild(messageEl);
+                }
+            }, 3000);
+        }
+
+        // 显示登录弹窗
+        function showLogin() {
+            const loginModal = document.createElement('div');
+            loginModal.className = 'login-modal';
+            loginModal.innerHTML = `
+                <div class="login-modal-content">
+                    <h2>教师登录</h2>
+                    <form id="teacherLoginForm">
+                        <div class="form-group">
+                            <label for="teacherId">教师ID:</label>
+                            <input type="text" id="teacherId" required placeholder="请输入教师ID (如: 8001)" value="8001">
+                        </div>
+                        <div class="form-group">
+                            <label for="teacherPassword">密码:</label>
+                            <input type="password" id="teacherPassword" required placeholder="请输入密码" value="123">
+                        </div>
+                        <div class="login-tips">
+                            <small>提示：教师ID为8001-8005，默认密码为123</small>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit">登录</button>
+                            <button type="button" onclick="hideLogin()">取消</button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            
+            document.body.appendChild(loginModal);
+            
+            // 处理登录表单提交
+            document.getElementById('teacherLoginForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const teacherId = document.getElementById('teacherId').value.trim();
+                const password = document.getElementById('teacherPassword').value;
+                
+                console.log('尝试登录:', { teacherId, password });
+                
+                if (!teacherId || !password) {
+                    showMessage('请填写完整的登录信息', 'warning');
+                    return;
+                }
+                
+                try {
+                    const response = await fetch('/api/auth/teacher-login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            teacherId,
+                            password
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    console.log('登录响应:', data);
+                    
+                    if (!response.ok) {
+                        console.error('登录失败:', response.status, data);
+                        throw new Error(data.message || '登录失败');
+                    }
+                    
+                    // 保存token和用户信息
+                    console.log('保存登录信息:', data.data);
+                    storage.set('teacherToken', data.data.token);
+                    storage.set('currentTeacher', data.data.teacher);
+                    
+                    // 隐藏登录弹窗
+                    hideLogin();
+                    
+                    // 显示成功信息
+                    showMessage('登录成功！', 'success');
+                    
+                    // 更新页面状态
+                    updateStatus();
+                    
+                } catch (error) {
+                    console.error('登录失败:', error);
+                    showMessage(error.message || '登录失败，请重试', 'error');
+                }
+            });
+        }
+
+        // 隐藏登录弹窗
+        function hideLogin() {
+            const loginModal = document.querySelector('.login-modal');
+            if (loginModal) {
+                loginModal.remove();
+            }
+        }
+
+        // 更新状态显示
+        function updateStatus() {
+            const token = storage.get('teacherToken');
+            const teacher = storage.get('currentTeacher');
+            const statusDiv = document.getElementById('status');
+            
+            if (token && teacher) {
+                statusDiv.innerHTML = `
+                    <h3>登录状态：已登录</h3>
+                    <p><strong>教师ID:</strong> ${teacher.id}</p>
+                    <p><strong>教师姓名:</strong> ${teacher.name}</p>
+                    <p><strong>Token:</strong> ${token.substring(0, 50)}...</p>
+                    <button onclick="logout()">退出登录</button>
+                    <button onclick="testAPI()">测试API调用</button>
+                `;
+            } else {
+                statusDiv.innerHTML = `
+                    <h3>登录状态：未登录</h3>
+                    <button onclick="showLogin()">重新登录</button>
+                `;
+            }
+        }
+
+        // 退出登录
+        function logout() {
+            storage.remove('teacherToken');
+            storage.remove('currentTeacher');
+            showMessage('已退出登录', 'info');
+            updateStatus();
+        }
+
+        // 测试API调用
+        async function testAPI() {
+            const token = storage.get('teacherToken');
+            if (!token) {
+                showMessage('请先登录', 'warning');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/config/mode', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+                console.log('API测试响应:', data);
+
+                if (response.ok) {
+                    showMessage('API调用成功！', 'success');
+                } else {
+                    showMessage('API调用失败: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('API调用失败:', error);
+                showMessage('API调用失败: ' + error.message, 'error');
+            }
+        }
+
+        // 页面加载时更新状态
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('调试页面加载完成');
+            updateStatus();
+        });
+    </script>
+</body>
+</html>

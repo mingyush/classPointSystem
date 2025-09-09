@@ -1,0 +1,48 @@
+[Unit]
+Description=Classroom Points Management System
+Documentation=https://github.com/username/classroom-points-system
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=classroom-points
+Group=classroom-points
+WorkingDirectory=/opt/classroom-points-system
+ExecStart=/usr/bin/node server.js
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=10
+StartLimitInterval=60s
+StartLimitBurst=3
+
+# 环境变量
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=PATH=/usr/bin:/usr/local/bin
+
+# 安全配置
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/classroom-points-system/data
+ReadWritePaths=/opt/classroom-points-system/logs
+ReadWritePaths=/opt/classroom-points-system/backups
+
+# 资源限制
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# 日志配置
+StandardOutput=append:/opt/classroom-points-system/logs/systemd.log
+StandardError=append:/opt/classroom-points-system/logs/systemd-error.log
+SyslogIdentifier=classroom-points
+
+# 进程管理
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

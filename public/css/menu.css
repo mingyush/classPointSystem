@@ -1,0 +1,348 @@
+/* 专业菜单系统样式 */
+
+/* 菜单按钮 */
+.menu-button {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 1000;
+    width: 50px;
+    height: 50px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    backdrop-filter: blur(10px);
+}
+
+.menu-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(102, 126, 234, 0.4);
+}
+
+.menu-button.active {
+    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    transform: scale(0.95);
+}
+
+/* 汉堡菜单图标 */
+.menu-icon {
+    width: 24px;
+    height: 18px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.menu-icon span {
+    display: block;
+    height: 2px;
+    width: 100%;
+    background: white;
+    border-radius: 1px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transform-origin: center;
+}
+
+.menu-button.active .menu-icon span:nth-child(1) {
+    transform: translateY(8px) rotate(45deg);
+}
+
+.menu-button.active .menu-icon span:nth-child(2) {
+    opacity: 0;
+    transform: scaleX(0);
+}
+
+.menu-button.active .menu-icon span:nth-child(3) {
+    transform: translateY(-8px) rotate(-45deg);
+}
+
+/* 菜单覆盖层 */
+.menu-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    z-index: 1001;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.menu-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* 菜单面板 */
+.menu-panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 320px;
+    height: 100%;
+    background: linear-gradient(180deg, #ffffff 0%, #f8f9fa 100%);
+    box-shadow: 4px 0 30px rgba(0, 0, 0, 0.1);
+    z-index: 1002;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow-y: auto;
+}
+
+.menu-panel.active {
+    transform: translateX(0);
+}
+
+/* 菜单头部 */
+.menu-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 25px 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.menu-header h3 {
+    margin: 0;
+    font-size: 1.1em;
+    font-weight: 600;
+}
+
+.menu-close {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.menu-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* 菜单导航 */
+.menu-nav {
+    padding: 0;
+}
+
+.menu-section {
+    margin-bottom: 8px;
+}
+
+.menu-section h4 {
+    margin: 0;
+    padding: 20px 20px 12px 20px;
+    font-size: 0.85em;
+    font-weight: 600;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.menu-section:first-child h4 {
+    padding-top: 24px;
+}
+
+/* 菜单项 */
+.menu-item {
+    display: flex;
+    align-items: center;
+    padding: 14px 20px;
+    color: #495057;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    border: none;
+    background: none;
+    width: 100%;
+    cursor: pointer;
+    font-size: 0.95em;
+    position: relative;
+}
+
+.menu-item:hover {
+    background: linear-gradient(90deg, rgba(102, 126, 234, 0.08) 0%, rgba(102, 126, 234, 0.04) 100%);
+    color: #667eea;
+    transform: translateX(4px);
+}
+
+.menu-item.active {
+    background: linear-gradient(90deg, rgba(102, 126, 234, 0.12) 0%, rgba(102, 126, 234, 0.06) 100%);
+    color: #667eea;
+    font-weight: 600;
+}
+
+.menu-item.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+}
+
+.menu-item svg {
+    margin-right: 12px;
+    flex-shrink: 0;
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+}
+
+.menu-item:hover svg,
+.menu-item.active svg {
+    opacity: 1;
+}
+
+.menu-item span {
+    font-weight: inherit;
+}
+
+/* 退出登录按钮特殊样式 */
+.logout-item {
+    color: #dc3545;
+    margin-top: 8px;
+    border-top: 1px solid #e9ecef;
+    padding-top: 20px;
+}
+
+.logout-item:hover {
+    background: linear-gradient(90deg, rgba(220, 53, 69, 0.08) 0%, rgba(220, 53, 69, 0.04) 100%);
+    color: #dc3545;
+}
+
+/* 用户信息面板 */
+.user-card {
+    display: flex;
+    align-items: center;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 12px;
+    margin: 0 20px 16px 20px;
+    border: 1px solid #e9ecef;
+}
+
+.user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    margin-right: 12px;
+    flex-shrink: 0;
+}
+
+.user-card.teacher .user-avatar {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+}
+
+.user-card.student .user-avatar {
+    background: linear-gradient(135deg, #007bff 0%, #6610f2 100%);
+}
+
+.user-details {
+    flex: 1;
+    min-width: 0;
+}
+
+.user-name {
+    font-weight: 600;
+    color: #495057;
+    font-size: 0.95em;
+    margin-bottom: 2px;
+}
+
+.user-role {
+    font-size: 0.8em;
+    color: #6c757d;
+    margin-bottom: 2px;
+}
+
+.user-balance {
+    font-size: 0.85em;
+    color: #28a745;
+    font-weight: 600;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .menu-panel {
+        width: 280px;
+    }
+    
+    .menu-button {
+        top: 15px;
+        left: 15px;
+        width: 45px;
+        height: 45px;
+    }
+}
+
+/* 防止页面滚动 */
+body.menu-open {
+    overflow: hidden;
+}
+
+/* 动画优化 */
+@media (prefers-reduced-motion: reduce) {
+    .menu-button,
+    .menu-overlay,
+    .menu-panel,
+    .menu-item,
+    .menu-icon span {
+        transition: none;
+    }
+}
+
+/* 高对比度模式支持 */
+@media (prefers-contrast: high) {
+    .menu-button {
+        border: 2px solid #000;
+    }
+    
+    .menu-item {
+        border-bottom: 1px solid #e9ecef;
+    }
+}
+
+/* 焦点样式 */
+.menu-button:focus,
+.menu-close:focus,
+.menu-item:focus {
+    outline: 2px solid #667eea;
+    outline-offset: 2px;
+}
+
+/* 加载动画 */
+@keyframes menuSlideIn {
+    from {
+        transform: translateX(-100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.menu-panel.active {
+    animation: menuSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}

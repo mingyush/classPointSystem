@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>教师管理 - 简化版</title>
+    <link rel="stylesheet" href="/css/common.css">
+    <link rel="stylesheet" href="/css/teacher.css">
+</head>
+<body>
+    <div class="teacher-container">
+        <header>
+            <h1>教师管理面板</h1>
+            <div class="header-controls">
+                <button id="modeToggle" class="mode-toggle">切换到上课模式</button>
+                <a href="/" class="back-link">返回首页</a>
+            </div>
+        </header>
+        
+        <main id="teacherContent">
+            <div class="loading">正在加载数据...</div>
+        </main>
+    </div>
+    
+    <script src="/js/common.js"></script>
+    <script>
+        // 等待common.js加载完成
+        function waitForCommonJs() {
+            return new Promise((resolve) => {
+                if (typeof checkTeacherAuth === 'function') {
+                    resolve();
+                } else {
+                    setTimeout(() => waitForCommonJs().then(resolve), 50);
+                }
+            });
+        }
+
+        // 简化的初始化
+        async function initSimpleTeacher() {
+            console.log('开始简化初始化');
+            
+            await waitForCommonJs();
+            console.log('common.js已加载');
+            
+            if (!checkTeacherAuth()) {
+                console.log('未登录，显示登录弹窗');
+                showTeacherLogin();
+                return;
+            }
+            
+            console.log('已登录，显示管理界面');
+            const teacher = storage.get('currentTeacher');
+            document.getElementById('teacherContent').innerHTML = `
+                <div class="teacher-info">
+                    <h2>欢迎，${teacher.name}！</h2>
+                    <p>教师ID: ${teacher.id}</p>
+                    <div class="actions">
+                        <button onclick="testModeSwitch()">测试模式切换</button>
+                        <button onclick="logout()">退出登录</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 测试模式切换
+        async function testModeSwitch() {
+            const token = storage.get('teacherToken');
+            try {
+                const response = await fetch('/api/config/mode', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ mode: 'class' })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    showMessage('模式切换成功', 'success');
+                } else {
+                    showMessage('模式切换失败: ' + data.message, 'error');
+                }
+            } catch (error) {
+                showMessage('模式切换失败: ' + error.message, 'error');
+            }
+        }
+
+        // 退出登录
+        function logout() {
+            storage.remove('teacherToken');
+            storage.remove('currentTeacher');
+            showMessage('已退出登录', 'info');
+            location.reload();
+        }
+
+        // 页面加载
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('简化教师页面加载完成');
+            initSimpleTeacher();
+        });
+    </script>
+</body>
+</html>

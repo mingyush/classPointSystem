@@ -1,0 +1,55 @@
+# Node.js
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 运行时文件
+*.pid
+*.seed
+*.pid.lock
+
+# 日志文件
+logs
+*.log
+
+# 备份文件
+backups
+*.zip
+
+# 测试文件
+tests
+coverage
+.nyc_output
+
+# 开发工具
+.vscode
+.idea
+*.swp
+*.swo
+
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# 文档
+docs
+README.md
+*.md
+
+# 配置文件（除了生产配置）
+config/development.json
+config/test.json
+
+# 脚本文件
+scripts
+
+# 临时文件
+tmp
+temp
+.tmp

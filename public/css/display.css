@@ -1,0 +1,694 @@
+/* 大屏展示样式 */
+.display-container {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    overflow-x: hidden;
+}
+
+.display-container header {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 40px;
+    margin: 0;
+    border-radius: 0;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.header-left h1 {
+    margin: 0;
+    font-size: 2.2em;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.mode-toggle-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 25px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+
+.mode-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+}
+
+.mode-toggle-btn.class-mode {
+    background: rgba(255, 193, 7, 0.3);
+    border-color: rgba(255, 193, 7, 0.5);
+}
+
+.home-link, .teacher-link {
+    color: white;
+    text-decoration: none;
+    padding: 8px 16px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 20px;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+.home-link:hover, .teacher-link:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+}
+
+/* 保持向后兼容 */
+.header-info {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.mode-indicator {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 10px 20px;
+    border-radius: 25px;
+    font-weight: bold;
+    font-size: 1.1em;
+}
+
+.connection-status {
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.9em;
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+
+.connection-status.connected {
+    background: rgba(78, 205, 196, 0.3);
+    border: 1px solid rgba(78, 205, 196, 0.5);
+    color: #4ecdc4;
+}
+
+.connection-status.disconnected {
+    background: rgba(255, 107, 107, 0.3);
+    border: 1px solid rgba(255, 107, 107, 0.5);
+    color: #ff6b6b;
+}
+
+#displayContent {
+    padding: 40px;
+    min-height: calc(100vh - 120px);
+}
+
+/* 排行榜头部 */
+.rankings-header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.rankings-header h2 {
+    font-size: 2.5em;
+    margin-bottom: 10px;
+}
+
+.last-update {
+    font-size: 1.1em;
+    opacity: 0.8;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 8px 16px;
+    border-radius: 20px;
+    display: inline-block;
+}
+
+/* 排行榜样式 */
+.rankings-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 30px;
+    margin-top: 20px;
+}
+
+.ranking-section {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border-radius: 15px;
+    padding: 25px;
+}
+
+.ranking-section h2 {
+    text-align: center;
+    margin-bottom: 20px;
+    font-size: 1.8em;
+    color: #fff;
+}
+
+.ranking-list {
+    list-style: none;
+}
+
+.ranking-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    margin-bottom: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    transition: transform 0.3s ease;
+}
+
+.ranking-item:hover {
+    transform: scale(1.02);
+}
+
+.ranking-item.top-3 {
+    background: linear-gradient(45deg, #ffd700, #ffed4e);
+    color: #333;
+    font-weight: bold;
+}
+
+.ranking-item.top-3:nth-child(2) {
+    background: linear-gradient(45deg, #c0c0c0, #e8e8e8);
+}
+
+.ranking-item.top-3:nth-child(3) {
+    background: linear-gradient(45deg, #cd7f32, #daa520);
+}
+
+.ranking-item.fade-in {
+    animation: fadeInUp 0.6s ease forwards;
+}
+
+.points.negative {
+    color: #ff6b6b;
+}
+
+.rank-change {
+    font-size: 0.8em;
+    margin-left: 8px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.rank-change.up {
+    color: #4ecdc4;
+}
+
+.rank-change.down {
+    color: #ff6b6b;
+}
+
+.no-data {
+    text-align: center;
+    padding: 30px;
+    font-size: 1.2em;
+    opacity: 0.7;
+    font-style: italic;
+}
+
+.student-info {
+    display: flex;
+    align-items: center;
+}
+
+.rank-number {
+    font-size: 1.5em;
+    font-weight: bold;
+    margin-right: 15px;
+    min-width: 30px;
+}
+
+.student-name {
+    font-size: 1.2em;
+}
+
+.points {
+    font-size: 1.3em;
+    font-weight: bold;
+}
+
+/* 上课模式样式 */
+.class-mode {
+    text-align: center;
+}
+
+.class-mode-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.class-mode-header h2 {
+    font-size: 2.2em;
+    margin: 0;
+}
+
+.operation-tips {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    font-size: 1.1em;
+}
+
+.refresh-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.refresh-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.student-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 20px;
+    margin-top: 30px;
+}
+
+.student-card {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border-radius: 15px;
+    padding: 20px;
+    text-align: center;
+    transition: transform 0.3s ease;
+}
+
+.student-card:hover {
+    transform: scale(1.05);
+}
+
+.student-card.slide-in {
+    animation: slideInUp 0.5s ease forwards;
+}
+
+.student-id {
+    font-size: 0.9em;
+    opacity: 0.7;
+    margin-bottom: 10px;
+}
+
+.student-card h3 {
+    margin-bottom: 15px;
+    font-size: 1.3em;
+}
+
+.student-card .balance {
+    font-size: 1.5em;
+    font-weight: bold;
+    margin-bottom: 15px;
+    color: #ffd700;
+    transition: all 0.3s ease;
+}
+
+.student-card .balance.negative {
+    color: #ff6b6b;
+}
+
+.student-card .balance.high {
+    color: #4ecdc4;
+}
+
+.student-card .balance.updated {
+    animation: pulse 1s ease;
+}
+
+.point-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    justify-content: center;
+}
+
+.control-group {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+}
+
+.point-controls button {
+    padding: 8px 12px;
+    font-size: 0.9em;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: bold;
+}
+
+.point-controls button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.add-btn {
+    background: #4ecdc4;
+    color: white;
+}
+
+.add-btn:hover:not(:disabled) {
+    background: #45b7aa;
+    transform: translateY(-2px);
+}
+
+.subtract-btn {
+    background: #ff6b6b;
+    color: white;
+}
+
+.subtract-btn:hover:not(:disabled) {
+    background: #ff5252;
+    transform: translateY(-2px);
+}
+
+.point-controls button.small {
+    padding: 6px 10px;
+    font-size: 0.8em;
+}
+
+.last-operation {
+    margin-top: 10px;
+    font-size: 0.9em;
+    min-height: 20px;
+}
+
+.last-operation .add {
+    color: #4ecdc4;
+    font-weight: bold;
+}
+
+.last-operation .subtract {
+    color: #ff6b6b;
+    font-weight: bold;
+}
+
+.no-students {
+    text-align: center;
+    padding: 50px;
+    font-size: 1.3em;
+    opacity: 0.7;
+    font-style: italic;
+}
+/* 错误和加载状态样式 */
+.error {
+    text-align: center;
+    padding: 50px;
+    background: rgba(255, 107, 107, 0.1);
+    border: 2px solid rgba(255, 107, 107, 0.3);
+    border-radius: 15px;
+    margin: 20px;
+}
+
+.error h3 {
+    color: #ff6b6b;
+    margin-bottom: 15px;
+    font-size: 1.5em;
+}
+
+.error p {
+    margin-bottom: 20px;
+    font-size: 1.1em;
+    opacity: 0.9;
+}
+
+.retry-btn {
+    background: #ff6b6b;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 25px;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: bold;
+    transition: all 0.3s ease;
+    margin: 0 10px;
+}
+
+.retry-btn:hover {
+    background: #ff5252;
+    transform: translateY(-2px);
+}
+
+.offline-btn {
+    background: #ffa726;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 25px;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: bold;
+    transition: all 0.3s ease;
+    margin: 0 10px;
+}
+
+.offline-btn:hover {
+    background: #ff9800;
+    transform: translateY(-2px);
+}
+
+.loading {
+    text-align: center;
+    padding: 50px;
+    font-size: 1.3em;
+    opacity: 0.8;
+}
+
+.loading::after {
+    content: '';
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: white;
+    animation: spin 1s ease-in-out infinite;
+    margin-left: 10px;
+}
+
+/* 新的加载和错误状态样式 */
+.loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    text-align: center;
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: white;
+    animation: spin 1s ease-in-out infinite;
+    margin-bottom: 20px;
+}
+
+.loading-message {
+    font-size: 1.2em;
+    opacity: 0.8;
+    color: white;
+}
+
+.error-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    text-align: center;
+    background: rgba(255, 107, 107, 0.1);
+    border: 2px solid rgba(255, 107, 107, 0.3);
+    border-radius: 15px;
+    margin: 20px;
+}
+
+.error-icon {
+    font-size: 3em;
+    margin-bottom: 20px;
+}
+
+.error-state h3 {
+    color: #ff6b6b;
+    margin-bottom: 15px;
+    font-size: 1.5em;
+}
+
+.error-state p {
+    margin-bottom: 30px;
+    font-size: 1.1em;
+    opacity: 0.9;
+    max-width: 500px;
+}
+
+.error-actions {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.offline-indicator {
+    background: rgba(255, 167, 38, 0.2);
+    border: 1px solid rgba(255, 167, 38, 0.4);
+    color: #ffa726;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.9em;
+    margin-top: 10px;
+    display: inline-block;
+}
+
+.loading-indicator {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 0.9em;
+    z-index: 1000;
+    display: none;
+}
+
+.loading-indicator::before {
+    content: '';
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: white;
+    animation: spin 1s ease-in-out infinite;
+    margin-right: 8px;
+}
+
+/* 动画定义 */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(50px) scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+        color: #4ecdc4;
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* 响应式设计 */
+@media (max-width: 1200px) {
+    .rankings-container {
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+    }
+    
+    .student-grid {
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 15px;
+    }
+}
+
+@media (max-width: 768px) {
+    .rankings-container {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+    
+    .student-grid {
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 10px;
+    }
+    
+    .class-mode-header {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .operation-tips {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    #displayContent {
+        padding: 20px;
+    }
+}
+
+/* 全屏模式优化 */
+:fullscreen .display-container {
+    padding: 0;
+}
+
+:fullscreen #displayContent {
+    padding: 20px;
+}
+
+/* 模式指示器样式 */
+.mode-indicator.class-mode {
+    background: rgba(255, 107, 107, 0.3);
+    border: 1px solid rgba(255, 107, 107, 0.5);
+}
+
+.mode-indicator.normal-mode {
+    background: rgba(78, 205, 196, 0.3);
+    border: 1px solid rgba(78, 205, 196, 0.5);
+}

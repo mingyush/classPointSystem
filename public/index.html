@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>班级积分管理系统</title>
+    <link rel="stylesheet" href="/css/common.css">
+    <link rel="stylesheet" href="/css/menu.css">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1 id="systemTitle">班级积分管理系统</h1>
+            <p class="subtitle">现代化的班级积分管理解决方案</p>
+        </header>
+
+        <main>
+            <div class="nav-cards">
+                <a href="/display" class="nav-card">
+                    <div class="card-icon">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                            <line x1="8" y1="21" x2="16" y2="21"></line>
+                            <line x1="12" y1="17" x2="12" y2="21"></line>
+                        </svg>
+                    </div>
+                    <h2>大屏展示</h2>
+                    <p>实时积分排行榜展示，支持上课模式和平时模式切换</p>
+                    <div class="card-features">
+                        <span>实时更新</span>
+                        <span>模式切换</span>
+                        <span>排行榜</span>
+                    </div>
+                </a>
+
+                <a href="/teacher" class="nav-card">
+                    <div class="card-icon">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                    </div>
+                    <h2>教师管理</h2>
+                    <p>积分管理、商品管理、预约处理和系统配置</p>
+                    <div class="card-features">
+                        <span>积分操作</span>
+                        <span>商品管理</span>
+                        <span>系统配置</span>
+                    </div>
+                </a>
+
+                <a href="/student" class="nav-card">
+                    <div class="card-icon">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="m22 21-3-3m0 0a5 5 0 1 0-7-7 5 5 0 0 0 7 7z"></path>
+                        </svg>
+                    </div>
+                    <h2>学生查询</h2>
+                    <p>个人积分查询、历史记录和奖品预约</p>
+                    <div class="card-features">
+                        <span>积分查询</span>
+                        <span>历史记录</span>
+                        <span>奖品预约</span>
+                    </div>
+                </a>
+            </div>
+
+            <div class="system-info">
+                <div class="info-card">
+                    <h3>系统特性</h3>
+                    <ul>
+                        <li>✨ 现代化界面设计</li>
+                        <li>🔄 实时数据同步</li>
+                        <li>📱 响应式布局</li>
+                        <li>🔐 安全的用户认证</li>
+                        <li>📊 详细的数据统计</li>
+                        <li>🎯 简单易用的操作</li>
+                    </ul>
+                </div>
+                <div class="info-card">
+                    <h3>快速开始</h3>
+                    <ol>
+                        <li>教师使用ID <code>8001-8005</code>，密码 <code>123</code> 登录</li>
+                        <li>学生使用学号 <code>0501-0550</code> 直接登录</li>
+                        <li>点击左上角菜单按钮快速导航</li>
+                        <li>使用快捷键 <code>Ctrl+M</code> 打开菜单</li>
+                    </ol>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p id="copyrightInfo">&copy; 2025 花儿起舞班级积分管理系统 | 作者：茗雨</p>
+        </footer>
+    </div>
+
+    <script src="/js/common.js"></script>
+    <script src="/js/menu.js"></script>
+    <script>
+        // 加载系统配置信息
+        async function loadSystemInfo() {
+            try {
+                const response = await fetch('/api/config/mode');
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    // 这里只能获取到模式信息，完整配置需要教师权限
+                    // 所以我们使用默认值或从本地存储获取
+                    const className = storage.get('systemClassName') || '花儿起舞';
+                    const copyright = storage.get('systemCopyright') || '© 2025 花儿起舞班级积分管理系统 | 作者：茗雨';
+                    
+                    // 更新页面标题
+                    const titleElement = document.getElementById('systemTitle');
+                    if (titleElement) {
+                        titleElement.textContent = `${className}班级积分管理系统`;
+                    }
+                    
+                    // 更新版权信息
+                    const copyrightElement = document.getElementById('copyrightInfo');
+                    if (copyrightElement) {
+                        copyrightElement.textContent = copyright;
+                    }
+                    
+                    // 更新页面标题
+                    document.title = `${className}班级积分管理系统`;
+                }
+            } catch (error) {
+                console.log('加载系统信息失败，使用默认值:', error);
+            }
+        }
+        
+        // 页面加载完成后执行
+        document.addEventListener('DOMContentLoaded', function() {
+            loadSystemInfo();
+        });
+    </script>
+</body>
+
+</html>
+</h3>

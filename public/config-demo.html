@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统配置演示</title>
+    <link rel="stylesheet" href="/css/common.css">
+    <link rel="stylesheet" href="/css/menu.css">
+    <style>
+        .demo-container {
+            padding: 100px 40px 40px 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .demo-section {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+        
+        .demo-section h2 {
+            margin: 0 0 20px 0;
+            color: #2c3e50;
+        }
+        
+        .config-display {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border-left: 4px solid #667eea;
+        }
+        
+        .config-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .config-item:last-child {
+            border-bottom: none;
+        }
+        
+        .config-label {
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .config-value {
+            color: #667eea;
+            font-family: monospace;
+            background: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .demo-buttons {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+        
+        .demo-btn {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .demo-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        .demo-btn.secondary {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        }
+        
+        .preview-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin: 20px 0;
+        }
+        
+        .preview-title {
+            font-size: 2em;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .preview-footer {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="demo-container">
+        <div class="demo-section">
+            <h2>🎯 系统配置演示</h2>
+            <p>这里展示了新增的班级名称和版权标识设置功能。</p>
+            
+            <div class="config-display">
+                <h3>当前系统配置</h3>
+                <div class="config-item">
+                    <span class="config-label">班级名称:</span>
+                    <span class="config-value" id="currentClassName">花儿起舞</span>
+                </div>
+                <div class="config-item">
+                    <span class="config-label">作者:</span>
+                    <span class="config-value" id="currentAuthor">茗雨</span>
+                </div>
+                <div class="config-item">
+                    <span class="config-label">版权信息:</span>
+                    <span class="config-value" id="currentCopyright">© 2025 花儿起舞班级积分管理系统 | 作者：茗雨</span>
+                </div>
+            </div>
+            
+            <div class="demo-buttons">
+                <button class="demo-btn" onclick="loadCurrentConfig()">加载当前配置</button>
+                <button class="demo-btn secondary" onclick="testConfigUpdate()">测试配置更新</button>
+            </div>
+        </div>
+        
+        <div class="demo-section">
+            <h2>📝 配置测试</h2>
+            <p>测试不同的班级名称和版权信息设置。</p>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0;">
+                <div>
+                    <label for="testClassName" style="display: block; margin-bottom: 5px; font-weight: 600;">班级名称:</label>
+                    <input type="text" id="testClassName" value="花儿起舞" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                <div>
+                    <label for="testAuthor" style="display: block; margin-bottom: 5px; font-weight: 600;">作者:</label>
+                    <input type="text" id="testAuthor" value="茗雨" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+            </div>
+            
+            <div style="margin: 20px 0;">
+                <label for="testCopyright" style="display: block; margin-bottom: 5px; font-weight: 600;">版权信息:</label>
+                <input type="text" id="testCopyright" value="© 2025 花儿起舞班级积分管理系统 | 作者：茗雨" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            </div>
+            
+            <div class="demo-buttons">
+                <button class="demo-btn" onclick="previewConfig()">预览效果</button>
+                <button class="demo-btn secondary" onclick="saveTestConfig()">保存测试配置</button>
+            </div>
+        </div>
+        
+        <div class="preview-section" id="previewSection">
+            <div class="preview-title" id="previewTitle">花儿起舞班级积分管理系统</div>
+            <p style="text-align: center; opacity: 0.9;">现代化的班级积分管理解决方案</p>
+            <div class="preview-footer" id="previewFooter">© 2025 花儿起舞班级积分管理系统 | 作者：茗雨</div>
+        </div>
+        
+        <div class="demo-section">
+            <h2>✨ 功能特点</h2>
+            <ul style="line-height: 2; color: #6c757d;">
+                <li>🏫 <strong>个性化班级名称:</strong> 支持自定义班级名称，显示在系统标题和各个页面中</li>
+                <li>👤 <strong>作者标识:</strong> 可以设置系统作者信息，体现开发者身份</li>
+                <li>📄 <strong>版权信息:</strong> 完整的版权声明，显示在页面底部</li>
+                <li>🔄 <strong>实时更新:</strong> 配置更改后立即在所有页面生效</li>
+                <li>💾 <strong>持久化存储:</strong> 配置信息保存在系统配置文件中</li>
+                <li>🎨 <strong>统一展示:</strong> 在菜单、标题栏、页脚等位置统一显示</li>
+            </ul>
+        </div>
+        
+        <div class="demo-section">
+            <h2>🛠️ 使用说明</h2>
+            <ol style="line-height: 2; color: #6c757d;">
+                <li>访问教师管理页面 → 系统设置标签页</li>
+                <li>在"系统参数配置"部分找到新增的配置项</li>
+                <li>修改班级名称、作者和版权信息</li>
+                <li>点击"保存配置"按钮</li>
+                <li>配置会立即在所有页面生效</li>
+            </ol>
+        </div>
+    </div>
+
+    <script src="/js/common.js"></script>
+    <script src="/js/menu.js"></script>
+    <script>
+        // 加载当前配置
+        async function loadCurrentConfig() {
+            try {
+                // 尝试从本地存储获取
+                const className = storage.get('systemClassName') || '花儿起舞';
+                const author = storage.get('systemAuthor') || '茗雨';
+                const copyright = storage.get('systemCopyright') || '© 2025 花儿起舞班级积分管理系统 | 作者：茗雨';
+                
+                // 更新显示
+                document.getElementById('currentClassName').textContent = className;
+                document.getElementById('currentAuthor').textContent = author;
+                document.getElementById('currentCopyright').textContent = copyright;
+                
+                // 更新输入框
+                document.getElementById('testClassName').value = className;
+                document.getElementById('testAuthor').value = author;
+                document.getElementById('testCopyright').value = copyright;
+                
+                // 更新预览
+                previewConfig();
+                
+                showMessage('配置加载成功', 'success');
+            } catch (error) {
+                console.error('加载配置失败:', error);
+                showMessage('加载配置失败', 'error');
+            }
+        }
+        
+        // 预览配置效果
+        function previewConfig() {
+            const className = document.getElementById('testClassName').value || '花儿起舞';
+            const author = document.getElementById('testAuthor').value || '茗雨';
+            const copyright = document.getElementById('testCopyright').value || '© 2025 花儿起舞班级积分管理系统 | 作者：茗雨';
+            
+            // 更新预览区域
+            document.getElementById('previewTitle').textContent = `${className}班级积分管理系统`;
+            document.getElementById('previewFooter').textContent = copyright;
+            
+            // 更新页面标题
+            document.title = `${className}班级积分管理系统 - 配置演示`;
+        }
+        
+        // 保存测试配置
+        function saveTestConfig() {
+            const className = document.getElementById('testClassName').value || '花儿起舞';
+            const author = document.getElementById('testAuthor').value || '茗雨';
+            const copyright = document.getElementById('testCopyright').value || '© 2025 花儿起舞班级积分管理系统 | 作者：茗雨';
+            
+            // 保存到本地存储
+            storage.set('systemClassName', className);
+            storage.set('systemAuthor', author);
+            storage.set('systemCopyright', copyright);
+            
+            // 更新当前配置显示
+            document.getElementById('currentClassName').textContent = className;
+            document.getElementById('currentAuthor').textContent = author;
+            document.getElementById('currentCopyright').textContent = copyright;
+            
+            // 更新预览
+            previewConfig();
+            
+            showMessage('测试配置已保存到本地存储', 'success');
+        }
+        
+        // 测试配置更新
+        function testConfigUpdate() {
+            const testConfigs = [
+                {
+                    className: '星光闪耀',
+                    author: '小明',
+                    copyright: '© 2025 星光闪耀班级积分管理系统 | 作者：小明'
+                },
+                {
+                    className: '梦想起航',
+                    author: '小红',
+                    copyright: '© 2025 梦想起航班级积分管理系统 | 作者：小红'
+                },
+                {
+                    className: '花儿起舞',
+                    author: '茗雨',
+                    copyright: '© 2025 花儿起舞班级积分管理系统 | 作者：茗雨'
+                }
+            ];
+            
+            const randomConfig = testConfigs[Math.floor(Math.random() * testConfigs.length)];
+            
+            // 更新输入框
+            document.getElementById('testClassName').value = randomConfig.className;
+            document.getElementById('testAuthor').value = randomConfig.author;
+            document.getElementById('testCopyright').value = randomConfig.copyright;
+            
+            // 预览效果
+            previewConfig();
+            
+            showMessage(`已切换到测试配置：${randomConfig.className}`, 'info');
+        }
+        
+        // 页面加载完成后执行
+        document.addEventListener('DOMContentLoaded', function() {
+            loadCurrentConfig();
+        });
+    </script>
+</body>
+</html>
