@@ -1,0 +1,110 @@
+# Cloudflare Workers配置文件
+name = "class-point-system"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# 环境变量
+[vars]
+ENVIRONMENT = "development"
+JWT_SECRET = "your-jwt-secret-key-change-in-production"
+JWT_EXPIRES_IN = "24h"
+CORS_ORIGIN = "*"
+RATE_LIMIT_REQUESTS = "100"
+RATE_LIMIT_WINDOW = "60"
+
+# D1数据库绑定
+[[d1_databases]]
+binding = "DB"
+database_name = "class-point-system-db"
+database_id = "your-database-id"
+
+# KV存储绑定（用于缓存和会话管理）
+[[kv_namespaces]]
+binding = "CACHE"
+id = "your-cache-kv-id"
+preview_id = "your-cache-kv-preview-id"
+
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "your-sessions-kv-id"
+preview_id = "your-sessions-kv-preview-id"
+
+# 定时任务配置
+[[triggers]]
+crons = ["0 2 * * *"] # 每天凌晨2点执行清理任务
+
+# 开发环境配置
+[env.development]
+name = "class-point-system-dev"
+
+[env.development.vars]
+ENVIRONMENT = "development"
+JWT_SECRET = "dev-jwt-secret-key"
+CORS_ORIGIN = "http://localhost:5173"
+
+# 生产环境配置
+[env.production]
+name = "class-point-system-prod"
+
+[env.production.vars]
+ENVIRONMENT = "production"
+JWT_SECRET = "prod-jwt-secret-key-change-this"
+CORS_ORIGIN = "https://your-frontend-domain.com"
+RATE_LIMIT_REQUESTS = "50"
+RATE_LIMIT_WINDOW = "60"
+
+# 构建配置
+[build]
+command = "npm run build"
+
+# 部署配置
+[deploy]
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# 路由配置
+[[routes]]
+pattern = "api.your-domain.com/*"
+zone_name = "your-domain.com"
+
+# 自定义域名（可选）
+# [[routes]]
+# pattern = "your-domain.com/api/*"
+# zone_name = "your-domain.com"
+
+# 开发服务器配置
+[dev]
+ip = "127.0.0.1"
+port = 8787
+local_protocol = "http"
+
+# 资源限制
+[limits]
+cpu_ms = 50
+
+# 日志配置
+[observability]
+headSampling = 0.01
+
+# 迁移脚本配置
+[migrations]
+directory = "migrations"
+
+# 测试配置
+[env.test]
+name = "class-point-system-test"
+
+[env.test.vars]
+ENVIRONMENT = "test"
+JWT_SECRET = "test-jwt-secret-key"
+CORS_ORIGIN = "*"
+
+# 预览环境配置
+[env.preview]
+name = "class-point-system-preview"
+
+[env.preview.vars]
+ENVIRONMENT = "preview"
+JWT_SECRET = "preview-jwt-secret-key"
+CORS_ORIGIN = "*"
