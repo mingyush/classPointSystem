@@ -444,7 +444,7 @@ function renderSystemSettings() {
                     
                     <div class="config-group">
                         <label for="className">班级名称:</label>
-                        <input type="text" id="className" placeholder="请输入班级名称" value="花儿起舞">
+                        <input type="text" id="className" placeholder="请输入班级名称" value="初一钱班">
                         <small>显示在系统标题和页面中的班级名称</small>
                     </div>
                     
@@ -456,7 +456,7 @@ function renderSystemSettings() {
                     
                     <div class="config-group">
                         <label for="copyright">版权信息:</label>
-                        <input type="text" id="copyright" placeholder="请输入版权信息" value="© 2025 花儿起舞班级积分管理系统 | 作者：茗雨">
+                        <input type="text" id="copyright" placeholder="请输入版权信息" value="© 2025 初一钱班班级积分管理系统 | 作者：茗雨">
                         <small>显示在页面底部的版权信息</small>
                     </div>
                     
@@ -548,7 +548,7 @@ function renderSystemSettings() {
             <div class="setting-section">
                 <h3>系统信息</h3>
                 <div class="system-info">
-                    <p>班级名称: <span id="currentClassName">花儿起舞</span></p>
+                    <p>班级名称: <span id="currentClassName">初一钱班</span></p>
                     <p>学生总数: <span id="studentCount">${students.length}</span></p>
                     <p>商品总数: <span id="productCount">${products.length}</span></p>
                     <p>待处理预约: <span id="pendingOrderCount">${orders.filter(o => o.status === 'pending').length}</span></p>
@@ -1121,9 +1121,9 @@ async function loadSystemConfig() {
         document.getElementById('autoRefreshInterval').value = config.autoRefreshInterval || 30;
         document.getElementById('maxPointsPerOperation').value = config.maxPointsPerOperation || 100;
         document.getElementById('pointsResetEnabled').checked = config.pointsResetEnabled || false;
-        document.getElementById('className').value = config.className || '花儿起舞';
+        document.getElementById('className').value = config.className || '初一钱班';
         document.getElementById('author').value = config.author || '茗雨';
-        document.getElementById('copyright').value = config.copyright || '© 2025 花儿起舞班级积分管理系统 | 作者：茗雨';
+        document.getElementById('copyright').value = config.copyright || '© 2025 初一钱班班级积分管理系统 | 作者：茗雨';
 
         // 设置学期开始日期
         if (config.semesterStartDate) {
@@ -1135,7 +1135,7 @@ async function loadSystemConfig() {
         const currentClassNameElement = document.getElementById('currentClassName');
         const currentAuthorElement = document.getElementById('currentAuthor');
         if (currentClassNameElement) {
-            currentClassNameElement.textContent = config.className || '花儿起舞';
+            currentClassNameElement.textContent = config.className || '初一钱班';
         }
         if (currentAuthorElement) {
             currentAuthorElement.textContent = config.author || '茗雨';

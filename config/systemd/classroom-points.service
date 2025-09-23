@@ -18,7 +18,7 @@ StartLimitBurst=3
 
 # 环境变量
 Environment=NODE_ENV=production
-Environment=PORT=3000
+Environment=PORT=3010
 Environment=PATH=/usr/bin:/usr/local/bin
 
 # 安全配置

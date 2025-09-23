@@ -43,15 +43,15 @@ log_info "运行集成测试 (类型: $TEST_TYPE)"
 
 # 确保服务器没有运行
 log_info "检查并停止现有服务..."
-if lsof -Pi :3000 -sTCP:LISTEN -t >/dev/null 2>&1; then
-    log_warning "端口3000被占用，尝试停止服务..."
+if lsof -Pi :3010 -sTCP:LISTEN -t >/dev/null 2>&1; then
+    log_warning "端口3010被占用，尝试停止服务..."
     if [ -f "$SCRIPT_DIR/stop.sh" ]; then
         bash "$SCRIPT_DIR/stop.sh" >/dev/null 2>&1 || true
     fi
     
     # 等待端口释放
     for i in {1..10}; do
-        if ! lsof -Pi :3000 -sTCP:LISTEN -t >/dev/null 2>&1; then
+        if ! lsof -Pi :3010 -sTCP:LISTEN -t >/dev/null 2>&1; then
             break
         fi
         sleep 1

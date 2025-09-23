@@ -25,7 +25,7 @@ const { errorHandler, notFoundHandler, errorLogger, performanceMonitor } = requi
 
 // 创建Express应用实例
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3010;
 
 // ==================== 数据初始化 ====================
 /**

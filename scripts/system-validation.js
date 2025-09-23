@@ -405,14 +405,14 @@ class SystemValidator {
 
     async checkEnvironmentVariables() {
         // 检查关键环境变量
-        const port = process.env.PORT || '3000';
+        const port = process.env.PORT || '3010';
         const nodeEnv = process.env.NODE_ENV || 'development';
         
         return `端口: ${port}, 环境: ${nodeEnv}`;
     }
 
     async checkPortConfig() {
-        const port = process.env.PORT || 3000;
+        const port = process.env.PORT || 3010;
         if (port >= 1024 && port <= 65535) {
             return `端口配置正确: ${port}`;
         } else {

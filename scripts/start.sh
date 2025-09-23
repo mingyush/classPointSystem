@@ -105,7 +105,7 @@ else
 fi
 
 # 检查端口占用
-PORT=$(node -e "console.log(require('./$CONFIG_FILE').server.port)" 2>/dev/null || echo "3000")
+PORT=$(node -e "console.log(require('./$CONFIG_FILE').server.port)" 2>/dev/null || echo "3010")
 if lsof -Pi :$PORT -sTCP:LISTEN -t >/dev/null 2>&1; then
     log_error "端口 $PORT 已被占用。请停止占用该端口的进程或修改配置文件中的端口设置。"
     log_info "查看端口占用: lsof -i :$PORT"

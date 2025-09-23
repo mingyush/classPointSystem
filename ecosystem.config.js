@@ -8,11 +8,11 @@ module.exports = {
     // 环境变量
     env: {
       NODE_ENV: 'development',
-      PORT: 3000
+      PORT: 3010  // 修改为3010
     },
     env_production: {
       NODE_ENV: 'production',
-      PORT: 3000
+      PORT: 3010  // 修改为3010
     },
     
     // 日志配置

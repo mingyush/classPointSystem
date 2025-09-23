@@ -149,10 +149,10 @@ cd classroom-points-system
 
 ### 访问系统
 
-- **主页**: http://localhost:3000
-- **大屏展示**: http://localhost:3000/display
-- **教师管理**: http://localhost:3000/teacher  
-- **学生查询**: http://localhost:3000/student
+- **主页**: http://localhost:3010
+- **大屏展示**: http://localhost:3010/display
+- **教师管理**: http://localhost:3010/teacher
+- **学生查询**: http://localhost:3010/student
 
 ### 默认账户
 
@@ -163,7 +163,7 @@ cd classroom-points-system
 
 **学生账户**: 使用学生学号登录（无需密码）
 - 学号范围: 0501-0550
-- 班级名称: 花儿起舞
+- 班级名称: 初一钱班
 
 ## 📁 项目结构
 

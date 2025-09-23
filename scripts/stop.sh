@@ -135,7 +135,7 @@ PORT=3000
 if [ -f "config/production.json" ]; then
     PORT=$(node -e "console.log(require('./config/production.json').server.port)" 2>/dev/null || echo "3000")
 elif [ -f "config/development.json" ]; then
-    PORT=$(node -e "console.log(require('./config/development.json').server.port)" 2>/dev/null || echo "3000")
+    PORT=$(node -e "console.log(require('./config/development.json').server.port)" 2>/dev/null || echo "3010")
 fi
 
 # 检查端口是否仍被占用

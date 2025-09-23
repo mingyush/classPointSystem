@@ -56,7 +56,7 @@ cd "$PROJECT_DIR"
 INTERVAL=60  # 检查间隔（秒）
 LOG_FILE=""  # 日志文件
 ALERT_EMAIL=""  # 告警邮箱
-PORT=3000
+PORT=3010
 
 # 解析命令行参数
 while [[ $# -gt 0 ]]; do
@@ -83,7 +83,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --interval SECONDS    监控检查间隔 (默认: 60秒)"
             echo "  --log-file FILE       监控日志文件"
             echo "  --alert-email EMAIL   告警邮箱地址"
-            echo "  --port PORT           服务端口 (默认: 3000)"
+            echo "  --port PORT           服务端口 (默认: 3010)"
             echo "  --help                显示帮助信息"
             exit 0
             ;;

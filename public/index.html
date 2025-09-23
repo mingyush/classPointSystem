@@ -97,7 +97,7 @@
         </main>
 
         <footer>
-            <p id="copyrightInfo">&copy; 2025 花儿起舞班级积分管理系统 | 作者：茗雨</p>
+            <p id="copyrightInfo">&copy; 2025 初一钱班班级积分管理系统 | 作者：茗雨</p>
         </footer>
     </div>
 
@@ -113,8 +113,8 @@
                 if (response.ok && data.success) {
                     // 这里只能获取到模式信息，完整配置需要教师权限
                     // 所以我们使用默认值或从本地存储获取
-                    const className = storage.get('systemClassName') || '花儿起舞';
-                    const copyright = storage.get('systemCopyright') || '© 2025 花儿起舞班级积分管理系统 | 作者：茗雨';
+                    const className = storage.get('systemClassName') || '初一钱班';
+                    const copyright = storage.get('systemCopyright') || '© 2025 初一钱班班级积分管理系统 | 作者：茗雨';
                     
                     // 更新页面标题
                     const titleElement = document.getElementById('systemTitle');

@@ -78,8 +78,8 @@ start_system() {
     print_header "启动系统"
     
     # 检查端口是否被占用
-    if lsof -i :3000 >/dev/null 2>&1; then
-        print_warning "端口 3000 已被占用，尝试停止现有服务..."
+    if lsof -i :3010 >/dev/null 2>&1; then
+        print_warning "端口 3010 已被占用，尝试停止现有服务..."
         pkill -f "node.*server.js" || true
         sleep 2
     fi
@@ -94,9 +94,9 @@ start_system() {
     sleep 5
     
     # 检查服务器是否正常运行
-    if curl -s http://localhost:3000 >/dev/null; then
+    if curl -s http://localhost:3010 >/dev/null; then
         print_step "服务器启动成功！"
-        print_step "访问地址: http://localhost:3000"
+        print_step "访问地址: http://localhost:3010"
     else
         print_error "服务器启动失败"
         kill $SERVER_PID 2>/dev/null || true

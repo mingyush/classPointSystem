@@ -37,7 +37,7 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_DIR"
 
 # 默认参数
-PORT=3000
+PORT=3010
 VERBOSE=false
 
 # 解析命令行参数
@@ -53,7 +53,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         -h|--help)
             echo "使用方法: $0 [--port PORT] [--verbose]"
-            echo "  --port PORT    指定检查的端口 (默认: 3000)"
+            echo "  --port PORT    指定检查的端口 (默认: 3010)"
             echo "  --verbose      显示详细信息"
             echo "  --help         显示帮助信息"
             exit 0

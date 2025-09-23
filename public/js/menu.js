@@ -258,7 +258,7 @@ class MenuSystem {
         // 更新菜单标题
         const menuTitle = document.getElementById('menuTitle');
         if (menuTitle) {
-            const className = storage?.get('systemClassName') || '花儿起舞';
+            const className = storage?.get('systemClassName') || '初一钱班';
             menuTitle.textContent = `${className}班级积分管理系统`;
         }
     }

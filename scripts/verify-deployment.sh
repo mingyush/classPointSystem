@@ -31,7 +31,7 @@ log_error() {
 
 # 默认参数
 HOST="localhost"
-PORT="3000"
+PORT="3010"
 
 # 解析命令行参数
 while [[ $# -gt 0 ]]; do
@@ -47,7 +47,7 @@ while [[ $# -gt 0 ]]; do
         -h|--help)
             echo "使用方法: $0 [--host HOST] [--port PORT]"
             echo "  --host HOST    目标主机 (默认: localhost)"
-            echo "  --port PORT    目标端口 (默认: 3000)"
+            echo "  --port PORT    目标端口 (默认: 3010)"
             echo "  --help         显示帮助信息"
             exit 0
             ;;
