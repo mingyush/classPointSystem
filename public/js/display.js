@@ -362,13 +362,13 @@ function renderStudentGrid(students) {
                 <div class="point-controls">
                     <div class="control-group">
                         <button onclick="adjustPoints('${student.id}', 1)" class="add-btn small">+1</button>
+                        <button onclick="adjustPoints('${student.id}', 3)" class="add-btn">+3</button>
                         <button onclick="adjustPoints('${student.id}', 5)" class="add-btn">+5</button>
-                        <button onclick="adjustPoints('${student.id}', 10)" class="add-btn">+10</button>
                     </div>
                     <div class="control-group">
                         <button onclick="adjustPoints('${student.id}', -1)" class="subtract-btn small">-1</button>
+                        <button onclick="adjustPoints('${student.id}', -3)" class="subtract-btn">-3/button>
                         <button onclick="adjustPoints('${student.id}', -5)" class="subtract-btn">-5</button>
-                        <button onclick="adjustPoints('${student.id}', -10)" class="subtract-btn">-10</button>
                     </div>
                 </div>
                 <div class="last-operation" id="lastOp_${student.id}"></div>
