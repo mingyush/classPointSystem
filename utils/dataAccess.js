@@ -1,20 +1,23 @@
 const fs = require('fs').promises;
 const path = require('path');
+const { sqliteConnection } = require('./sqliteConnection');
 
 /**
- * 数据访问层 - JSON文件操作工具
+ * 数据访问层 - 支持JSON文件和SQLite数据库
  * 提供统一的数据读写接口，包含错误处理和备份机制
+ * 支持配置切换存储后端（JSON文件或SQLite数据库）
  */
 class DataAccess {
-    constructor(dataDir = 'data') {
+    constructor(dataDir = 'data', useSQLite = false) {
         this.dataDir = dataDir;
         this.backupDir = path.join(dataDir, 'backups');
+        this.useSQLite = useSQLite; // 是否使用SQLite
         
-        // 文件缓存机制
+        // 文件缓存机制（仅JSON模式使用）
         this.fileCache = new Map();
         this.cacheTimeout = 30000; // 30秒缓存
         
-        // 写入队列，避免并发写入冲突
+        // 写入队列，避免并发写入冲突（仅JSON模式使用）
         this.writeQueue = new Map();
         
         // 性能监控
@@ -41,14 +44,32 @@ class DataAccess {
     }
 
     /**
-     * 读取JSON文件（优化版本，支持缓存）
-     * @param {string} filename - 文件名
+     * 读取数据（支持JSON文件和SQLite）
+     * @param {string} filename - 文件名（JSON模式）或表名（SQLite模式）
      * @param {object} defaultData - 默认数据
-     * @param {boolean} useCache - 是否使用缓存
-     * @returns {Promise<object>} 文件内容
+     * @param {boolean} useCache - 是否使用缓存（仅JSON模式有效）
+     * @returns {Promise<object>} 数据内容
      */
     async readFile(filename, defaultData = {}, useCache = true) {
         const startTime = Date.now();
+        
+        // SQLite模式
+        if (this.useSQLite) {
+            try {
+                const tableName = this._getTableName(filename);
+                const data = await this._readFromSQLite(tableName, defaultData);
+                this.metrics.readCount++;
+                const readTime = Date.now() - startTime;
+                this.metrics.averageReadTime = 
+                    (this.metrics.averageReadTime + readTime) / 2;
+                return data;
+            } catch (error) {
+                console.error(`SQLite读取失败 ${filename}:`, error);
+                return defaultData;
+            }
+        }
+        
+        // JSON文件模式（原有逻辑）
         const filePath = path.join(this.dataDir, filename);
         
         try {
@@ -95,15 +116,36 @@ class DataAccess {
     }
 
     /**
-     * 写入JSON文件（优化版本，支持队列和缓存更新）
-     * @param {string} filename - 文件名
+     * 写入数据（支持JSON文件和SQLite）
+     * @param {string} filename - 文件名（JSON模式）或表名（SQLite模式）
      * @param {object} data - 要写入的数据
-     * @param {boolean} skipBackup - 是否跳过备份
+     * @param {boolean} skipBackup - 是否跳过备份（仅JSON模式有效）
      * @returns {Promise<void>}
      */
     async writeFile(filename, data, skipBackup = false) {
         const startTime = Date.now();
         
+        // SQLite模式
+        if (this.useSQLite) {
+            try {
+                const tableName = this._getTableName(filename);
+                await this._writeToSQLite(tableName, data);
+                
+                // 更新性能指标
+                this.metrics.writeCount++;
+                const writeTime = Date.now() - startTime;
+                this.metrics.averageWriteTime = 
+                    (this.metrics.averageWriteTime + writeTime) / 2;
+                    
+                console.log(`SQLite数据写入成功: ${tableName}`);
+            } catch (error) {
+                console.error(`SQLite写入失败 ${filename}:`, error);
+                throw error;
+            }
+            return;
+        }
+        
+        // JSON文件模式（原有逻辑）
         // 使用写入队列避免并发冲突
         if (this.writeQueue.has(filename)) {
             await this.writeQueue.get(filename);
@@ -404,6 +446,314 @@ class DataAccess {
             }
         } catch (error) {
             console.error('压缩备份文件失败:', error);
+        }
+    }
+
+    // ==================== SQLite支持方法 ====================
+
+    /**
+     * 获取表名（从文件名转换）
+     * @private
+     */
+    _getTableName(filename) {
+        // 移除.json后缀并转换为复数形式
+        const baseName = filename.replace('.json', '');
+        const tableMap = {
+            'students': 'students',
+            'teachers': 'teachers', 
+            'points': 'points',
+            'products': 'products',
+            'orders': 'orders',
+            'system_config': 'system_config'
+        };
+        return tableMap[baseName] || baseName;
+    }
+
+    /**
+     * 从SQLite读取数据
+     * @private
+     */
+    async _readFromSQLite(tableName, defaultData) {
+        try {
+            // 检查表是否存在
+            const tableExists = await sqliteConnection.tableExists(tableName);
+            if (!tableExists) {
+                console.log(`SQLite表 ${tableName} 不存在，创建默认数据`);
+                await this._writeToSQLite(tableName, defaultData);
+                return defaultData;
+            }
+
+            // 根据表名读取数据
+            let query;
+            switch (tableName) {
+                case 'students':
+                    query = 'SELECT * FROM students ORDER BY id';
+                    break;
+                case 'teachers':
+                    query = 'SELECT * FROM teachers ORDER BY id';
+                    break;
+                case 'points':
+                    query = 'SELECT * FROM points ORDER BY createdAt DESC';
+                    break;
+                case 'products':
+                    query = 'SELECT * FROM products ORDER BY id';
+                    break;
+                case 'orders':
+                    query = 'SELECT * FROM orders ORDER BY createdAt DESC';
+                    break;
+                case 'system_config':
+                case 'systemConfig':
+                    query = 'SELECT * FROM system_config';
+                    break;
+                default:
+                    query = `SELECT * FROM ${tableName}`;
+            }
+
+            const rows = await sqliteConnection.all(query);
+            
+            // 转换为JSON格式（保持兼容性）
+            return this._convertSQLiteToJSON(tableName, rows);
+        } catch (error) {
+            console.error(`SQLite读取错误 ${tableName}:`, error);
+            return defaultData;
+        }
+    }
+
+    /**
+     * 写入数据到SQLite
+     * @private
+     */
+    async _writeToSQLite(tableName, data) {
+        if (!data) return;
+        
+        try {
+            switch (tableName) {
+                case 'students':
+                    await this._writeStudentsToSQLite(data);
+                    break;
+                case 'teachers':
+                    await this._writeTeachersToSQLite(data);
+                    break;
+                case 'points':
+                    await this._writePointsToSQLite(data);
+                    break;
+                case 'products':
+                    await this._writeProductsToSQLite(data);
+                    break;
+                case 'orders':
+                    await this._writeOrdersToSQLite(data);
+                    break;
+                case 'system_config':
+                    await this._writeSystemConfigToSQLite(data);
+                    break;
+                default:
+                    console.log(`SQLite表 ${tableName} 不存在，跳过写入`);
+            }
+        } catch (error) {
+            console.error(`写入SQLite表 ${tableName} 失败:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * 将SQLite数据转换为JSON格式
+     * @private
+     */
+    _convertSQLiteToJSON(tableName, rows) {
+        switch (tableName) {
+            case 'students':
+            case 'teachers':
+            case 'products':
+                // 数组格式
+                return rows;
+            case 'points':
+            case 'orders':
+                // 数组格式，保持时间戳
+                return rows.map(row => ({
+                    ...row,
+                    created_at: row.created_at,
+                    updated_at: row.updated_at
+                }));
+            case 'system_config':
+            case 'systemConfig':
+                // 配置格式，转换为对象
+                const config = {};
+                rows.forEach(row => {
+                    config[row.key] = row.value;
+                });
+                return config;
+            default:
+                return rows;
+        }
+    }
+
+    /**
+     * 写入学生数据到SQLite
+     * @private
+     */
+    async _writeStudentsToSQLite(data) {
+        if (!Array.isArray(data)) return;
+        
+        // 清空现有数据
+        await sqliteConnection.run('DELETE FROM students');
+        
+        // 插入新数据
+        const insertQuery = `
+            INSERT INTO students (id, name, class, studentId, totalPoints, currentPoints, avatar, createdAt, updatedAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        `;
+        
+        for (const student of data) {
+            await sqliteConnection.run(insertQuery, [
+                student.id,
+                student.name,
+                student.class || '默认班级',
+                student.studentId || student.id,
+                student.totalPoints || 0,
+                student.currentPoints || 0,
+                student.avatar || null
+            ]);
+        }
+    }
+
+    /**
+     * 写入教师数据到SQLite
+     * @private
+     */
+    async _writeTeachersToSQLite(data) {
+        if (!Array.isArray(data)) return;
+        
+        // 清空现有数据
+        await sqliteConnection.run('DELETE FROM teachers');
+        
+        // 插入新数据
+        const insertQuery = `
+            INSERT INTO teachers (id, name, password, role, department, isActive, createdAt, updatedAt)
+            VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        `;
+        
+        for (const teacher of data) {
+            await sqliteConnection.run(insertQuery, [
+                teacher.id,
+                teacher.name,
+                teacher.password,
+                teacher.role || 'teacher',
+                teacher.department || null,
+                teacher.hasOwnProperty('isActive') ? teacher.isActive : 1
+            ]);
+        }
+    }
+
+    /**
+     * 写入积分数据到SQLite
+     * @private
+     */
+    async _writePointsToSQLite(data) {
+        if (!Array.isArray(data)) return;
+        
+        // 清空现有数据
+        await sqliteConnection.run('DELETE FROM points');
+        
+        // 插入新数据
+        const insertQuery = `
+            INSERT INTO points (id, studentId, points, reason, type, teacherId, createdBy, createdAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        `;
+        
+        for (const point of data) {
+            await sqliteConnection.run(insertQuery, [
+                point.id,
+                point.studentId,
+                point.points,
+                point.reason,
+                point.type,
+                point.teacherId || null,
+                point.createdBy || point.teacherId || 'system'
+            ]);
+        }
+    }
+
+    /**
+     * 写入商品数据到SQLite
+     * @private
+     */
+    async _writeProductsToSQLite(data) {
+        if (!Array.isArray(data)) return;
+        
+        // 清空现有数据
+        await sqliteConnection.run('DELETE FROM products');
+        
+        // 插入新数据
+        const insertQuery = `
+            INSERT INTO products (id, name, description, price, stock, image, category, isActive, createdAt, updatedAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        `;
+        
+        for (const product of data) {
+            await sqliteConnection.run(insertQuery, [
+                product.id,
+                product.name,
+                product.description,
+                product.price,
+                product.stock || 0,
+                product.image || null,
+                product.category || null,
+                product.hasOwnProperty('isActive') ? product.isActive : 1
+            ]);
+        }
+    }
+
+    /**
+     * 写入订单数据到SQLite
+     * @private
+     */
+    async _writeOrdersToSQLite(data) {
+        if (!Array.isArray(data)) return;
+        
+        // 清空现有数据
+        await sqliteConnection.run('DELETE FROM orders');
+        
+        // 插入新数据
+        const insertQuery = `
+            INSERT INTO orders (id, studentId, productId, quantity, totalPrice, status, createdAt, updatedAt)
+            VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        `;
+        
+        for (const order of data) {
+            await sqliteConnection.run(insertQuery, [
+                order.id,
+                order.studentId,
+                order.productId,
+                order.quantity,
+                order.totalPrice,
+                order.status || 'pending'
+            ]);
+        }
+    }
+
+    /**
+     * 写入系统配置数据到SQLite
+     * @private
+     */
+    async _writeSystemConfigToSQLite(data) {
+        if (!Array.isArray(data)) return;
+        
+        // 清空现有数据
+        await sqliteConnection.run('DELETE FROM system_config');
+        
+        // 插入新数据
+        const insertQuery = `
+            INSERT INTO system_config (id, key, value, description, createdAt, updatedAt)
+            VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
+        `;
+        
+        for (const config of data) {
+            await sqliteConnection.run(insertQuery, [
+                config.id,
+                config.key,
+                config.value,
+                config.description || null
+            ]);
         }
     }
 }
