@@ -1,6 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const StudentService = require('../services/studentService');
+const TeacherService = require('../services/teacherService');
 const router = express.Router();
 
 // JWT密钥 (生产环境应使用环境变量)
@@ -28,7 +29,7 @@ router.post('/student-login', async (req, res) => {
 
         // 验证学生是否存在
         const studentService = new StudentService();
-        const student = await studentService.validateStudentLogin(studentId.trim());
+        const student = await studentService.getStudentById(studentId.trim());
 
         if (!student) {
             return res.status(401).json({
@@ -43,8 +44,7 @@ router.post('/student-login', async (req, res) => {
             {
                 userId: student.id,
                 userType: 'student',
-                name: student.name,
-                class: student.class
+                name: student.name
             },
             JWT_SECRET,
             { expiresIn: '24h' }
@@ -58,7 +58,6 @@ router.post('/student-login', async (req, res) => {
                 student: {
                     id: student.id,
                     name: student.name,
-                    class: student.class,
                     balance: student.balance
                 }
             }
@@ -74,12 +73,9 @@ router.post('/student-login', async (req, res) => {
     }
 });
 
-// 引入教师服务
-const TeacherService = require('../services/teacherService');
-
 /**
  * 教师登录接口
- * 支持多个教师账号验证
+ * 支持班主任和任课老师登录
  */
 router.post('/teacher-login', async (req, res) => {
     try {
@@ -122,8 +118,7 @@ router.post('/teacher-login', async (req, res) => {
                 userId: teacher.id,
                 userType: 'teacher',
                 name: teacher.name,
-                role: teacher.role,
-                department: teacher.department
+                role: teacher.role
             },
             JWT_SECRET,
             { expiresIn: '8h' }
@@ -138,7 +133,6 @@ router.post('/teacher-login', async (req, res) => {
                     id: teacher.id,
                     name: teacher.name,
                     role: teacher.role,
-                    department: teacher.department,
                     userType: 'teacher'
                 }
             }
@@ -150,6 +144,40 @@ router.post('/teacher-login', async (req, res) => {
             success: false,
             message: '登录失败，请稍后重试',
             code: 'LOGIN_ERROR'
+        });
+    }
+});
+
+/**
+ * 获取教师列表接口
+ * 用于上课模式的教师选择
+ */
+router.get('/teachers', authenticateToken, requireTeacher, async (req, res) => {
+    try {
+        const teacherService = new TeacherService();
+        const teachers = await teacherService.getAllTeachers(true); // 只获取活跃的教师
+        
+        // 格式化教师数据，只返回必要的信息
+        const teacherList = teachers.map(teacher => ({
+            id: teacher.id,
+            name: teacher.name,
+            role: teacher.role
+        }));
+        
+        res.json({
+            success: true,
+            message: '获取教师列表成功',
+            data: {
+                teachers: teacherList
+            }
+        });
+        
+    } catch (error) {
+        console.error('获取教师列表失败:', error);
+        res.status(500).json({
+            success: false,
+            message: '获取教师列表失败，请稍后重试',
+            code: 'GET_TEACHERS_ERROR'
         });
     }
 });

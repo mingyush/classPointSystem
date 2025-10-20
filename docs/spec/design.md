@@ -705,7 +705,7 @@ interface SwitchModeRequest {
 3. **初始化数据库表**
    ```bash
    # 执行建表语句
-   wrangler d1 execute classroom-points --file=./sql/init.sql
+   wrangler d1 execute classroom-points --file=./sql/init_standalone.sql
    ```
 
 4. **部署Pages和Workers**

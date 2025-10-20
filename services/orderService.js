@@ -1,19 +1,29 @@
-const DataAccess = require('../utils/dataAccess');
+const { storageAdapterFactory } = require('../adapters/storageAdapterFactory');
 const { Order } = require('../models/dataModels');
 const StudentService = require('./studentService');
 const ProductService = require('./productService');
 
 /**
- * 订单服务类
+ * 订单服务类 - V1版本
  * 处理预约订单相关的业务逻辑
+ * 适配新的数据库存储接口
  */
 class OrderService {
-    constructor() {
-        this.dataAccess = new DataAccess();
-        this.filename = 'orders.json';
-        this.defaultData = { orders: [] };
-        this.studentService = new StudentService();
-        this.productService = new ProductService();
+    constructor(classId = 'default') {
+        this.classId = classId; // 单班级ID，默认为'default'
+        this.adapter = null;
+        this.studentService = new StudentService(classId);
+        this.productService = new ProductService(classId);
+    }
+
+    /**
+     * 获取存储适配器
+     */
+    async getAdapter() {
+        if (!this.adapter) {
+            this.adapter = await storageAdapterFactory.getDefaultAdapter();
+        }
+        return this.adapter;
     }
 
     /**
@@ -23,14 +33,14 @@ class OrderService {
      */
     async getAllOrders(status = null) {
         try {
-            const data = await this.dataAccess.readFile(this.filename, this.defaultData);
-            let orders = data.orders.map(orderData => new Order(orderData));
-            
+            const adapter = await this.getAdapter();
+            const filters = {};
             if (status) {
-                orders = orders.filter(order => order.status === status);
+                filters.status = status;
             }
             
-            return orders;
+            const orders = await adapter.getOrders(this.classId, filters);
+            return orders.map(order => new Order(order));
         } catch (error) {
             console.error('获取订单列表失败:', error);
             throw new Error('获取订单列表失败');
@@ -44,10 +54,10 @@ class OrderService {
      */
     async getOrderById(orderId) {
         try {
-            const data = await this.dataAccess.readFile(this.filename, this.defaultData);
-            const orderData = data.orders.find(o => o.id === orderId);
+            const adapter = await this.getAdapter();
+            const order = await adapter.getOrderById(this.classId, orderId);
             
-            return orderData ? new Order(orderData) : null;
+            return order ? new Order(order) : null;
         } catch (error) {
             console.error('获取订单失败:', error);
             throw new Error('获取订单失败');
@@ -62,8 +72,14 @@ class OrderService {
      */
     async getOrdersByStudentId(studentId, status = null) {
         try {
-            const orders = await this.getAllOrders(status);
-            return orders.filter(order => order.studentId === studentId);
+            const adapter = await this.getAdapter();
+            const filters = { studentId };
+            if (status) {
+                filters.status = status;
+            }
+            
+            const orders = await adapter.getOrders(this.classId, filters);
+            return orders.map(order => new Order(order));
         } catch (error) {
             console.error('获取学生订单失败:', error);
             throw new Error('获取学生订单失败');
@@ -98,8 +114,12 @@ class OrderService {
                 throw new Error('商品库存不足');
             }
 
-            // 检查学生积分是否足够
-            if (student.balance < product.price) {
+            // 检查学生积分是否足够（通过积分服务计算当前余额）
+            const PointsService = require('./pointsService');
+            const pointsService = new PointsService(this.classId);
+            const currentBalance = await pointsService.calculateStudentBalance(studentId);
+            
+            if (currentBalance < product.price) {
                 throw new Error('积分不足');
             }
 
@@ -123,16 +143,19 @@ class OrderService {
                 throw new Error('订单数据验证失败: ' + validation.errors.join(', '));
             }
 
-            // 冻结学生积分（暂时扣除，但不记录积分变化）
-            await this.studentService.updateStudentBalance(studentId, student.balance - product.price);
+            const adapter = await this.getAdapter();
+            
+            // 准备订单数据
+            const orderData = {
+                ...order.toJSON(),
+                quantity: 1,
+                totalPrice: product.price
+            };
 
-            // 保存订单
-            const data = await this.dataAccess.readFile(this.filename, this.defaultData);
-            data.orders.push(order.toJSON());
-            await this.dataAccess.writeFile(this.filename, data);
+            const createdOrder = await adapter.createOrder(this.classId, orderData);
 
-            console.log(`创建预约成功: 学生 ${studentId} 预约商品 ${productId} (订单ID: ${order.id})`);
-            return order;
+            console.log(`创建预约成功: 学生 ${studentId} 预约商品 ${productId} (订单ID: ${createdOrder.id})`);
+            return new Order(createdOrder);
 
         } catch (error) {
             console.error('创建预约失败:', error);
@@ -143,9 +166,10 @@ class OrderService {
     /**
      * 确认预约订单
      * @param {string} orderId - 订单ID
+     * @param {string} updatedBy - 操作者ID
      * @returns {Promise<Order>}
      */
-    async confirmReservation(orderId) {
+    async confirmReservation(orderId, updatedBy = null) {
         try {
             // 获取订单
             const order = await this.getOrderById(orderId);
@@ -166,23 +190,23 @@ class OrderService {
             // 减少商品库存
             await this.productService.reduceStock(order.productId, 1);
 
+            // 扣除学生积分
+            const PointsService = require('./pointsService');
+            const pointsService = new PointsService(this.classId);
+            await pointsService.addPointRecord({
+                studentId: order.studentId,
+                points: -product.price,
+                reason: `兑换商品: ${product.name}`,
+                operatorId: updatedBy || 'system',
+                type: 'purchase'
+            });
+
             // 更新订单状态
-            const data = await this.dataAccess.readFile(this.filename, this.defaultData);
-            const orderIndex = data.orders.findIndex(o => o.id === orderId);
-            
-            if (orderIndex === -1) {
-                throw new Error('订单不存在');
-            }
+            const adapter = await this.getAdapter();
+            const updatedOrder = await adapter.updateOrderStatus(this.classId, orderId, 'confirmed', updatedBy);
 
-            data.orders[orderIndex].status = 'confirmed';
-            data.orders[orderIndex].confirmedAt = new Date().toISOString();
-
-            await this.dataAccess.writeFile(this.filename, data);
-
-            const updatedOrder = new Order(data.orders[orderIndex]);
             console.log(`确认预约成功: 订单 ${orderId}`);
-            
-            return updatedOrder;
+            return new Order(updatedOrder);
 
         } catch (error) {
             console.error('确认预约失败:', error);
@@ -193,9 +217,10 @@ class OrderService {
     /**
      * 取消预约订单
      * @param {string} orderId - 订单ID
+     * @param {string} reason - 取消原因
      * @returns {Promise<Order>}
      */
-    async cancelReservation(orderId) {
+    async cancelReservation(orderId, reason = '用户取消') {
         try {
             // 获取订单
             const order = await this.getOrderById(orderId);
@@ -207,34 +232,11 @@ class OrderService {
                 throw new Error('只能取消待处理的订单');
             }
 
-            // 获取学生和商品信息
-            const student = await this.studentService.getStudentById(order.studentId);
-            const product = await this.productService.getProductById(order.productId);
-            
-            if (!student || !product) {
-                throw new Error('学生或商品信息不存在');
-            }
+            const adapter = await this.getAdapter();
+            const updatedOrder = await adapter.cancelOrder(this.classId, orderId, reason);
 
-            // 退还冻结的积分
-            await this.studentService.updateStudentBalance(order.studentId, student.balance + product.price);
-
-            // 更新订单状态
-            const data = await this.dataAccess.readFile(this.filename, this.defaultData);
-            const orderIndex = data.orders.findIndex(o => o.id === orderId);
-            
-            if (orderIndex === -1) {
-                throw new Error('订单不存在');
-            }
-
-            data.orders[orderIndex].status = 'cancelled';
-            data.orders[orderIndex].cancelledAt = new Date().toISOString();
-
-            await this.dataAccess.writeFile(this.filename, data);
-
-            const updatedOrder = new Order(data.orders[orderIndex]);
             console.log(`取消预约成功: 订单 ${orderId}`);
-            
-            return updatedOrder;
+            return new Order(updatedOrder);
 
         } catch (error) {
             console.error('取消预约失败:', error);

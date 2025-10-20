@@ -100,7 +100,7 @@ npm run backup
 
 4. **初始化数据库表**
    ```bash
-   wrangler d1 execute classroom-points-v1 --file=sql/init.sql
+   wrangler d1 execute classroom-points-v1 --file=sql/init_standalone.sql
    ```
 
 5. **部署应用**

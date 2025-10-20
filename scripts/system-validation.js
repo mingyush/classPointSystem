@@ -67,53 +67,73 @@ class SystemValidator {
         const requirements = [
             {
                 id: '1.1',
-                name: '积分展示系统 - 总积分显示',
-                check: () => this.checkApiEndpoint('/api/points/rankings/total')
+                name: '教室大屏入口 - 大屏访问',
+                check: () => this.checkStaticFile('/display/index.html')
             },
             {
                 id: '1.2',
-                name: '积分展示系统 - 日榜显示',
-                check: () => this.checkApiEndpoint('/api/points/rankings/daily')
-            },
-            {
-                id: '1.3',
-                name: '积分展示系统 - 周榜显示',
-                check: () => this.checkApiEndpoint('/api/points/rankings/weekly')
+                name: '教室大屏入口 - 模式切换',
+                check: () => this.checkApiEndpoint('/api/system/state')
             },
             {
                 id: '2.1',
-                name: '教师积分管理 - 加分功能',
-                check: () => this.checkApiEndpoint('/api/points/add', 'POST')
+                name: '班级管理后台 - 后台访问',
+                check: () => this.checkStaticFile('/admin/index.html')
             },
             {
                 id: '2.2',
-                name: '教师积分管理 - 减分功能',
-                check: () => this.checkApiEndpoint('/api/points/subtract', 'POST')
+                name: '班级管理后台 - 权限控制',
+                check: () => this.checkApiEndpoint('/api/auth/login', 'POST')
             },
             {
                 id: '3.1',
-                name: '学生积分账户 - 学号登录',
-                check: () => this.checkApiEndpoint('/api/auth/student-login', 'POST')
+                name: '常用奖惩项管理 - 奖惩项CRUD',
+                check: () => this.checkApiEndpoint('/api/reward-penalty')
+            },
+            {
+                id: '4.1',
+                name: 'SQLite数据存储 - 数据库文件',
+                check: () => this.checkSQLiteDatabase()
             },
             {
                 id: '5.1',
+                name: '积分展示系统 - 排行榜API',
+                check: () => this.checkApiEndpoint('/api/points/rankings')
+            },
+            {
+                id: '6.1',
+                name: '教师积分管理 - 积分操作',
+                check: () => this.checkApiEndpoint('/api/points', 'POST')
+            },
+            {
+                id: '7.1',
+                name: '学生积分查询 - 学号查询',
+                check: () => this.checkApiEndpoint('/api/students')
+            },
+            {
+                id: '8.1',
+                name: '积分累积规则 - 积分清零',
+                check: () => this.checkApiEndpoint('/api/points/clear', 'POST')
+            },
+            {
+                id: '9.1',
                 name: '商品管理系统 - 商品CRUD',
                 check: () => this.checkApiEndpoint('/api/products')
             },
             {
-                id: '6.1',
+                id: '10.1',
                 name: '商品预约系统 - 预约功能',
-                check: () => this.checkApiEndpoint('/api/orders/reserve', 'POST')
+                check: () => this.checkApiEndpoint('/api/orders')
             },
             {
-                id: '7.1',
-                name: '系统模式切换',
-                check: () => this.checkApiEndpoint('/api/config/mode')
+                id: '11.1',
+                name: '系统模式切换 - 模式API',
+                check: () => this.checkApiEndpoint('/api/system/switch-mode', 'POST')
             },
             {
-                id: '8.1',
-                name: '数据持久化',
-                check: () => this.checkDataFiles()
+                id: '12.1',
+                name: '数据持久化可靠性 - 数据库事务',
+                check: () => this.checkDatabaseReliability()
             }
         ];
 
@@ -150,6 +170,8 @@ class SystemValidator {
             { name: 'Node.js', check: () => this.checkNodeVersion() },
             { name: 'package.json', check: () => this.checkPackageJson() },
             { name: 'node_modules', check: () => this.checkNodeModules() },
+            { name: 'SQLite适配器', check: () => this.checkSQLiteAdapter() },
+            { name: 'D1适配器', check: () => this.checkD1Adapter() },
             { name: '数据目录', check: () => this.checkDataDirectory() },
             { name: '静态文件', check: () => this.checkStaticFiles() }
         ];
@@ -298,18 +320,35 @@ class SystemValidator {
         }
     }
 
-    async checkDataFiles() {
-        const dataDir = path.join(__dirname, '..', 'data');
-        const requiredFiles = ['students.json', 'points.json', 'products.json', 'orders.json', 'config.json'];
-        
-        for (const file of requiredFiles) {
-            try {
-                await fs.access(path.join(dataDir, file));
-            } catch {
-                return false;
-            }
+    async checkSQLiteDatabase() {
+        const dbPath = path.join(__dirname, '..', 'data', 'classroom_points.db');
+        try {
+            await fs.access(dbPath);
+            return `SQLite数据库文件存在: ${dbPath}`;
+        } catch {
+            return false;
         }
-        return `所有数据文件存在: ${requiredFiles.join(', ')}`;
+    }
+
+    async checkStaticFile(filePath) {
+        const fullPath = path.join(__dirname, '..', 'public', filePath);
+        try {
+            await fs.access(fullPath);
+            return `静态文件存在: ${filePath}`;
+        } catch {
+            return false;
+        }
+    }
+
+    async checkDatabaseReliability() {
+        // 检查是否有数据库适配器
+        const adaptersDir = path.join(__dirname, '..', 'adapters');
+        try {
+            await fs.access(path.join(adaptersDir, 'sqliteStorageAdapter.js'));
+            return 'SQLite适配器存在';
+        } catch {
+            return false;
+        }
     }
 
     async checkNodeVersion() {
@@ -328,7 +367,7 @@ class SystemValidator {
             const packagePath = path.join(__dirname, '..', 'package.json');
             const packageData = JSON.parse(await fs.readFile(packagePath, 'utf8'));
             
-            const requiredDeps = ['express', 'archiver', 'multer'];
+            const requiredDeps = ['express', 'sqlite3', 'archiver'];
             const missingDeps = requiredDeps.filter(dep => !packageData.dependencies[dep]);
             
             if (missingDeps.length === 0) {
@@ -336,6 +375,26 @@ class SystemValidator {
             } else {
                 return false;
             }
+        } catch {
+            return false;
+        }
+    }
+
+    async checkSQLiteAdapter() {
+        try {
+            const adapterPath = path.join(__dirname, '..', 'adapters', 'sqliteStorageAdapter.js');
+            await fs.access(adapterPath);
+            return 'SQLite适配器文件存在';
+        } catch {
+            return false;
+        }
+    }
+
+    async checkD1Adapter() {
+        try {
+            const adapterPath = path.join(__dirname, '..', 'adapters', 'd1StorageAdapter.js');
+            await fs.access(adapterPath);
+            return 'D1适配器文件存在';
         } catch {
             return false;
         }

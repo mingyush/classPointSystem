@@ -3,7 +3,6 @@ const PointsService = require('../services/pointsService');
 const sseService = require('../services/sseService');
 const { authenticateToken, requireTeacher } = require('./auth');
 const { asyncHandler, createError, operationLogger } = require('../middleware/errorHandler');
-const { Validators, CustomValidators } = require('../middleware/validation');
 const router = express.Router();
 
 // 创建积分服务实例

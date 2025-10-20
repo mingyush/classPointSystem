@@ -1,0 +1,93 @@
+# Cloudflare Workers 配置文件
+# 班级积分管理系统
+
+name = "classroom-points-system"
+main = "src/worker.js"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Workers 配置
+[env.production]
+name = "classroom-points-system"
+route = { pattern = "classroom-points.your-domain.com/*", zone_name = "your-domain.com" }
+
+[env.staging]
+name = "classroom-points-system-staging"
+
+# D1 数据库绑定
+[[d1_databases]]
+binding = "DB"
+database_name = "classroom-points"
+database_id = "your-d1-database-id-here"
+migrations_dir = "sql/migrations"
+
+# 环境变量
+[vars]
+DEPLOYMENT = "cloudflare"
+NODE_ENV = "production"
+DB_TYPE = "d1"
+
+# 生产环境变量
+[env.production.vars]
+DEPLOYMENT = "cloudflare"
+NODE_ENV = "production"
+DB_TYPE = "d1"
+ENABLE_ANALYTICS = "true"
+
+# 开发环境变量
+[env.staging.vars]
+DEPLOYMENT = "cloudflare"
+NODE_ENV = "staging"
+DB_TYPE = "d1"
+ENABLE_ANALYTICS = "false"
+
+# KV 存储绑定（用于会话存储）
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "your-kv-namespace-id-here"
+preview_id = "your-kv-preview-id-here"
+
+# 生产环境 KV
+[env.production]
+[[env.production.kv_namespaces]]
+binding = "SESSIONS"
+id = "your-production-kv-id-here"
+
+# 开发环境 KV
+[env.staging]
+[[env.staging.kv_namespaces]]
+binding = "SESSIONS"
+id = "your-staging-kv-id-here"
+
+# R2 存储绑定（用于文件上传，可选）
+[[r2_buckets]]
+binding = "UPLOADS"
+bucket_name = "classroom-points-uploads"
+
+# 限制配置
+[limits]
+cpu_ms = 50
+
+# 构建配置
+[build]
+command = "npm run build:worker"
+cwd = "."
+watch_dir = "src"
+
+# 部署配置
+[triggers]
+crons = ["0 2 * * *"]  # 每天凌晨2点执行定时任务
+
+# 分析和监控
+[observability]
+enabled = true
+
+# 安全配置
+[placement]
+mode = "smart"
+
+# 自定义域名配置示例
+# 需要在 Cloudflare Dashboard 中配置
+# [route]
+# pattern = "classroom-points.your-school.edu/*"
+# zone_name = "your-school.edu"

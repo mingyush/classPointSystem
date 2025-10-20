@@ -10,6 +10,8 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - DB_TYPE=sqlite
+      - DB_PATH=/app/data/classroom_points.db
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
@@ -28,6 +30,26 @@ services:
         max-file: "3"
     networks:
       - classroom-network
+    depends_on:
+      - db-backup
+
+  # SQLite 数据库备份服务
+  db-backup:
+    image: alpine:latest
+    container_name: classroom-points-backup
+    restart: unless-stopped
+    volumes:
+      - ./data:/data
+      - ./backups:/backups
+    command: >
+      sh -c "
+        apk add --no-cache sqlite dcron &&
+        echo '0 2 * * * sqlite3 /data/classroom_points.db \".backup /backups/classroom_points_\$$(date +%Y%m%d_%H%M%S).db\"' | crontab - &&
+        echo '0 3 * * 0 find /backups -name \"classroom_points_*.db\" -mtime +30 -delete' | crontab - &&
+        crond -f
+      "
+    networks:
+      - classroom-network
 
   # 可选：Nginx 反向代理
   nginx:
@@ -40,11 +62,22 @@ services:
     volumes:
       - ./config/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./config/nginx/ssl:/etc/nginx/ssl:ro
+      - ./public:/usr/share/nginx/html/static:ro
     depends_on:
       - classroom-points
     networks:
       - classroom-network
+    profiles:
+      - nginx
 
 networks:
   classroom-network:
     driver: bridge
+
+volumes:
+  classroom-data:
+    driver: local
+  classroom-logs:
+    driver: local
+  classroom-backups:
+    driver: local

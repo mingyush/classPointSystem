@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>大屏展示 - 班级积分管理系统</title>
+    <title>教室大屏 - 班级积分系统</title>
     <link rel="stylesheet" href="/css/common.css">
     <link rel="stylesheet" href="/css/display.css">
     <link rel="stylesheet" href="/css/menu.css">
@@ -12,14 +12,18 @@
     <div class="display-container">
         <header>
             <div class="header-left">
-                <h1>班级积分排行榜</h1>
+                <h1 id="headerTitle">班级积分排行榜</h1>
                 <div class="mode-indicator" id="modeIndicator">平时模式</div>
+                <div class="session-info" id="sessionInfo" style="display: none;">
+                    <span id="currentTeacher"></span>
+                    <span id="sessionTime"></span>
+                </div>
             </div>
             <div class="header-right">
                 <div class="header-controls">
-                    <button id="modeToggle" class="mode-toggle-btn">切换模式</button>
+                    <button id="modeToggle" class="mode-toggle-btn">切换到上课模式</button>
                     <a href="/" class="home-link">返回首页</a>
-                    <a href="/teacher" class="teacher-link">教师管理</a>
+                    <a href="/admin" class="admin-link">管理后台</a>
                 </div>
                 <div class="connection-status disconnected">连接中...</div>
             </div>
@@ -29,6 +33,85 @@
             <!-- 内容将通过JavaScript动态加载 -->
             <div class="loading">正在加载数据...</div>
         </main>
+
+        <!-- 学生查询弹窗 -->
+        <div id="studentQueryModal" class="modal" style="display: none;">
+            <div class="modal-content large-modal">
+                <div class="modal-header">
+                    <h3>学生积分查询</h3>
+                    <button class="close-btn" onclick="closeStudentQuery()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="studentLoginForm" class="query-form">
+                        <input type="text" id="studentNumberInput" placeholder="请输入学号" maxlength="20">
+                        <button onclick="queryStudent()" class="query-btn">查询</button>
+                    </div>
+                    <div id="studentDashboard" class="student-dashboard" style="display: none;">
+                        <div class="student-header">
+                            <div class="student-info">
+                                <h4 id="studentName"></h4>
+                                <p id="studentNumber"></p>
+                            </div>
+                            <div class="student-actions">
+                                <button onclick="refreshStudentData()" class="refresh-btn">刷新</button>
+                                <button onclick="logoutStudent()" class="logout-btn">退出</button>
+                            </div>
+                        </div>
+                        
+                        <div class="dashboard-tabs">
+                            <button class="tab-button active" onclick="switchStudentTab('overview', this)">个人概览</button>
+                            <button class="tab-button" onclick="switchStudentTab('history', this)">积分记录</button>
+                            <button class="tab-button" onclick="switchStudentTab('products', this)">商品兑换</button>
+                            <button class="tab-button" onclick="switchStudentTab('orders', this)">我的预约</button>
+                        </div>
+                        
+                        <div id="studentOverviewTab" class="dashboard-content active">
+                            <!-- 概览内容 -->
+                        </div>
+                        
+                        <div id="studentHistoryTab" class="dashboard-content">
+                            <!-- 历史记录内容 -->
+                        </div>
+                        
+                        <div id="studentProductsTab" class="dashboard-content">
+                            <!-- 商品兑换内容 -->
+                        </div>
+                        
+                        <div id="studentOrdersTab" class="dashboard-content">
+                            <!-- 我的预约内容 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 教师选择弹窗 -->
+        <div id="teacherSelectModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>选择任课教师</h3>
+                    <button class="close-btn" onclick="closeTeacherSelect()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="teacher-list" id="teacherList">
+                        <!-- 教师列表将动态加载 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部操作栏 -->
+        <footer id="displayFooter" class="display-footer">
+            <div class="footer-content">
+                <button id="studentQueryBtn" class="footer-btn" onclick="showStudentQuery()">
+                    <span class="btn-icon">🔍</span>
+                    <span class="btn-text">学生查询</span>
+                </button>
+                <div class="footer-info">
+                    <span id="footerTime"></span>
+                </div>
+            </div>
+        </footer>
     </div>
     
     <script src="/js/common.js"></script>

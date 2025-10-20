@@ -321,6 +321,87 @@ class SystemConfig {
 }
 
 /**
+ * 奖惩项模型
+ */
+class RewardPenaltyItem {
+    constructor(data = {}) {
+        this.id = data.id || this.generateId();
+        this.name = data.name || '';
+        this.points = data.points || 0;
+        this.type = data.type || 'reward'; // 'reward', 'penalty'
+        this.isActive = data.isActive !== undefined ? data.isActive : true;
+        this.sortOrder = data.sortOrder || 0;
+        this.createdAt = data.createdAt || new Date().toISOString();
+    }
+
+    /**
+     * 生成唯一ID
+     * @returns {string}
+     */
+    generateId() {
+        return 'rp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    }
+
+    /**
+     * 验证奖惩项数据
+     * @returns {object} 验证结果
+     */
+    validate() {
+        const errors = [];
+        const validTypes = ['reward', 'penalty'];
+
+        if (!this.name || typeof this.name !== 'string') {
+            errors.push('奖惩项名称不能为空且必须为字符串');
+        }
+
+        if (typeof this.points !== 'number') {
+            errors.push('积分数必须为数字');
+        }
+
+        if (!validTypes.includes(this.type)) {
+            errors.push('奖惩项类型必须为: ' + validTypes.join(', '));
+        }
+
+        if (this.type === 'reward' && this.points <= 0) {
+            errors.push('奖励项积分必须为正数');
+        }
+
+        if (this.type === 'penalty' && this.points >= 0) {
+            errors.push('惩罚项积分必须为负数');
+        }
+
+        if (typeof this.isActive !== 'boolean') {
+            errors.push('奖惩项状态必须为布尔值');
+        }
+
+        if (typeof this.sortOrder !== 'number') {
+            errors.push('排序值必须为数字');
+        }
+
+        return {
+            isValid: errors.length === 0,
+            errors
+        };
+    }
+
+    /**
+     * 转换为JSON对象
+     * @returns {object}
+     */
+    toJSON() {
+        return {
+            id: this.id,
+            name: this.name,
+            points: this.points,
+            type: this.type,
+            isActive: this.isActive,
+            sortOrder: this.sortOrder,
+            createdAt: this.createdAt
+        };
+    }
+}
+
+/**
  * 教师信息模型
  */
 class Teacher {
@@ -401,5 +482,6 @@ module.exports = {
     Product,
     Order,
     SystemConfig,
+    RewardPenaltyItem,
     Teacher
 };

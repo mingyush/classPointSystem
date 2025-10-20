@@ -1,16 +1,29 @@
-const DataAccess = require('../utils/dataAccess');
+const { storageAdapterFactory } = require('../adapters/storageAdapterFactory');
 const { PointRecord } = require('../models/dataModels');
 const StudentService = require('./studentService');
 
 /**
- * 积分服务层
+ * 积分服务层 - V1版本
  * 提供积分记录的CRUD操作、余额计算和排名统计
+ * 适配新的数据库存储接口，保持现有的缓存和性能优化
  */
 class PointsService {
-    constructor() {
-        this.dataAccess = new DataAccess();
-        this.filename = 'points.json';
-        this.studentService = new StudentService();
+    constructor(classId = null) {
+        // 从配置文件获取classId，如果没有则使用传入的参数，最后默认为'default'
+        if (!classId) {
+            try {
+                const fs = require('fs');
+                const path = require('path');
+                const configPath = path.join(__dirname, '../config/config.json');
+                const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+                classId = config.classId || 'default';
+            } catch (error) {
+                classId = 'default';
+            }
+        }
+        this.classId = classId;
+        this.adapter = null;
+        this.studentService = new StudentService(classId);
         
         // 缓存机制
         this.rankingCache = new Map();
@@ -25,13 +38,25 @@ class PointsService {
     }
 
     /**
+     * 获取存储适配器
+     */
+    async getAdapter() {
+        if (!this.adapter) {
+            this.adapter = await storageAdapterFactory.getDefaultAdapter();
+        }
+        return this.adapter;
+    }
+
+    /**
      * 获取所有积分记录
+     * @param {object} filters - 过滤条件
      * @returns {Promise<PointRecord[]>}
      */
-    async getAllPointRecords() {
+    async getAllPointRecords(filters = {}) {
         try {
-            const data = await this.dataAccess.readFile(this.filename, { records: [] });
-            return data.records.map(record => new PointRecord(record));
+            const adapter = await this.getAdapter();
+            const records = await adapter.getPointRecords(this.classId, filters);
+            return records.map(record => new PointRecord(record));
         } catch (error) {
             console.error('获取积分记录失败:', error);
             throw new Error('获取积分记录失败');
@@ -50,16 +75,14 @@ class PointsService {
                 throw new Error('学号不能为空且必须为字符串');
             }
 
-            const records = await this.getAllPointRecords();
-            let studentRecords = records
-                .filter(record => record.studentId === studentId)
-                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-            if (limit && typeof limit === 'number' && limit > 0) {
-                studentRecords = studentRecords.slice(0, limit);
+            const filters = { studentId };
+            if (limit) {
+                filters.limit = limit;
             }
 
-            return studentRecords;
+            const adapter = await this.getAdapter();
+            const records = await adapter.getPointRecords(this.classId, filters);
+            return records.map(record => new PointRecord(record));
         } catch (error) {
             console.error(`获取学生积分记录失败 (${studentId}):`, error);
             throw error;
@@ -86,21 +109,43 @@ class PointsService {
                 throw new Error(`学生不存在: ${record.studentId}`);
             }
 
-            // 添加记录
-            const data = await this.dataAccess.readFile(this.filename, { records: [] });
-            data.records.push(record.toJSON());
-            await this.dataAccess.writeFile(this.filename, data);
+            const adapter = await this.getAdapter();
+            
+            // 准备记录数据，适配新的数据库接口
+            const recordForDB = {
+                ...record.toJSON(),
+                amount: record.points, // 数据库中使用amount字段
+                teacherId: record.operatorId, // 数据库中使用teacherId字段
+                type: this.mapRecordType(record.type) // 映射记录类型
+            };
 
-            // 更新学生余额
-            const newBalance = student.balance + record.points;
-            await this.studentService.updateStudentBalance(record.studentId, newBalance);
+            const createdRecord = await adapter.createPointRecord(this.classId, recordForDB);
 
             console.log(`添加积分记录成功: ${record.studentId} ${record.points > 0 ? '+' : ''}${record.points} (${record.reason})`);
-            return record;
+            
+            // 清除缓存
+            this.clearCache();
+            
+            return new PointRecord(createdRecord);
         } catch (error) {
             console.error('添加积分记录失败:', error);
             throw error;
         }
+    }
+
+    /**
+     * 映射记录类型到数据库格式
+     * @param {string} type - 原始类型
+     * @returns {string} 数据库类型
+     */
+    mapRecordType(type) {
+        const typeMap = {
+            'add': 'manual',
+            'subtract': 'manual',
+            'purchase': 'purchase',
+            'refund': 'manual'
+        };
+        return typeMap[type] || 'manual';
     }
 
     /**
@@ -110,8 +155,8 @@ class PointsService {
      */
     async calculateStudentBalance(studentId) {
         try {
-            const records = await this.getPointRecordsByStudent(studentId);
-            const balance = records.reduce((sum, record) => sum + record.points, 0);
+            const adapter = await this.getAdapter();
+            const balance = await adapter.calculatePointBalance(this.classId, studentId);
             return balance;
         } catch (error) {
             console.error(`计算学生积分余额失败 (${studentId}):`, error);
@@ -154,36 +199,16 @@ class PointsService {
             const cacheKey = `ranking_${type}_${limit}`;
             const cached = this._getRankingCache(cacheKey);
             if (cached && this._isCacheValid(cached.timestamp)) {
+                this.performanceMetrics.cacheHits++;
                 return cached.data;
             }
 
-            const students = await this.studentService.getAllStudents();
-            let rankings = [];
-
-            switch (type) {
-                case 'total':
-                    rankings = await this.getTotalRanking(students);
-                    break;
-                case 'daily':
-                    rankings = await this.getDailyRanking(students);
-                    break;
-                case 'weekly':
-                    rankings = await this.getWeeklyRanking(students);
-                    break;
-                default:
-                    throw new Error('无效的排行榜类型: ' + type);
-            }
-
-            // 使用优化的排序算法
-            rankings = this._optimizedSort(rankings, limit);
-            
-            // 添加排名
-            rankings.forEach((item, index) => {
-                item.rank = index + 1;
-            });
+            const adapter = await this.getAdapter();
+            const rankings = await adapter.getPointRanking(this.classId, type, limit);
 
             // 缓存结果
             this._setRankingCache(cacheKey, rankings);
+            this.performanceMetrics.queryCount++;
 
             return rankings;
         } catch (error) {
@@ -384,25 +409,54 @@ class PointsService {
      * @returns {Promise<{success: PointRecord[], failed: object[]}>}
      */
     async batchAddPointRecords(recordsData) {
-        const results = {
-            success: [],
-            failed: []
-        };
+        try {
+            const adapter = await this.getAdapter();
+            
+            // 准备批量操作数据
+            const operations = recordsData.map(recordData => {
+                const record = new PointRecord(recordData);
+                return {
+                    ...record.toJSON(),
+                    amount: record.points,
+                    teacherId: record.operatorId,
+                    type: this.mapRecordType(record.type)
+                };
+            });
 
-        for (const recordData of recordsData) {
-            try {
-                const record = await this.addPointRecord(recordData);
-                results.success.push(record);
-            } catch (error) {
-                results.failed.push({
-                    data: recordData,
-                    error: error.message
-                });
+            const results = await adapter.batchPointOperations(this.classId, operations);
+            
+            // 清除缓存
+            this.clearCache();
+            
+            console.log(`批量添加积分记录完成: 成功 ${results.length} 条记录`);
+            return {
+                success: results.map(r => new PointRecord(r)),
+                failed: []
+            };
+        } catch (error) {
+            console.error('批量添加积分记录失败:', error);
+            
+            // 如果批量操作失败，回退到逐个处理
+            const results = {
+                success: [],
+                failed: []
+            };
+
+            for (const recordData of recordsData) {
+                try {
+                    const record = await this.addPointRecord(recordData);
+                    results.success.push(record);
+                } catch (error) {
+                    results.failed.push({
+                        data: recordData,
+                        error: error.message
+                    });
+                }
             }
-        }
 
-        console.log(`批量添加积分记录完成: 成功 ${results.success.length}, 失败 ${results.failed.length}`);
-        return results;
+            console.log(`批量添加积分记录完成: 成功 ${results.success.length}, 失败 ${results.failed.length}`);
+            return results;
+        }
     }
 
     /**
@@ -414,19 +468,16 @@ class PointsService {
      */
     async getPointRecordsByDateRange(startDate, endDate, studentId = null) {
         try {
-            let records = await this.getAllPointRecords();
-
-            // 按时间范围过滤
-            records = records.filter(record => {
-                const recordDate = new Date(record.timestamp);
-                return recordDate >= startDate && recordDate <= endDate;
-            });
-
-            // 按学生过滤（如果指定）
+            const filters = {
+                startDate: startDate.toISOString(),
+                endDate: endDate.toISOString()
+            };
+            
             if (studentId) {
-                records = records.filter(record => record.studentId === studentId);
+                filters.studentId = studentId;
             }
 
+            const records = await this.getAllPointRecords(filters);
             return records.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
         } catch (error) {
             console.error('获取时间范围积分记录失败:', error);
@@ -442,22 +493,14 @@ class PointsService {
      */
     async resetAllPoints(operatorId, reason = '积分清零') {
         try {
-            const students = await this.studentService.getAllStudents();
+            const adapter = await this.getAdapter();
+            const result = await adapter.resetAllPoints(this.classId, operatorId, reason);
             
-            for (const student of students) {
-                if (student.balance !== 0) {
-                    // 添加清零记录
-                    await this.addPointRecord({
-                        studentId: student.id,
-                        points: -student.balance,
-                        reason: reason,
-                        operatorId: operatorId,
-                        type: 'subtract'
-                    });
-                }
-            }
+            // 清除缓存
+            this.clearCache();
             
-            console.log(`积分清零完成，影响 ${students.length} 名学生`);
+            console.log(`积分清零完成，创建了 ${result.length} 条记录`);
+            return result;
         } catch (error) {
             console.error('积分清零失败:', error);
             throw error;

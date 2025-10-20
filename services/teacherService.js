@@ -1,15 +1,25 @@
-const DataAccess = require('../utils/dataAccess');
+const { storageAdapterFactory } = require('../adapters/storageAdapterFactory');
 const { Teacher } = require('../models/dataModels');
 
 /**
- * 教师服务类
+ * 教师服务类 - V1版本
  * 处理教师相关的业务逻辑
+ * 简化权限逻辑，适配新的数据库存储接口
  */
 class TeacherService {
-    constructor() {
-        this.dataAccess = new DataAccess();
-        this.filename = 'teachers.json';
-        this.defaultData = { teachers: [] };
+    constructor(classId = 'default') {
+        this.classId = classId; // 单班级ID，默认为'default'
+        this.adapter = null;
+    }
+
+    /**
+     * 获取存储适配器
+     */
+    async getAdapter() {
+        if (!this.adapter) {
+            this.adapter = await storageAdapterFactory.getDefaultAdapter();
+        }
+        return this.adapter;
     }
 
     /**
@@ -19,14 +29,14 @@ class TeacherService {
      */
     async getAllTeachers(activeOnly = true) {
         try {
-            const data = await this.dataAccess.readFile(this.filename, this.defaultData);
-            let teachers = data.teachers.map(teacherData => new Teacher(teacherData));
-            
+            const adapter = await this.getAdapter();
+            const filters = { role: 'teacher' };
             if (activeOnly) {
-                teachers = teachers.filter(teacher => teacher.isActive);
+                filters.isActive = true;
             }
             
-            return teachers;
+            const users = await adapter.getUsers(this.classId, filters);
+            return users.map(user => new Teacher(user));
         } catch (error) {
             console.error('获取教师列表失败:', error);
             throw new Error('获取教师列表失败');
@@ -40,10 +50,14 @@ class TeacherService {
      */
     async getTeacherById(teacherId) {
         try {
-            const data = await this.dataAccess.readFile(this.filename, this.defaultData);
-            const teacherData = data.teachers.find(t => t.id === teacherId && t.isActive);
+            const adapter = await this.getAdapter();
+            const user = await adapter.getUserById(this.classId, teacherId);
             
-            return teacherData ? new Teacher(teacherData) : null;
+            if (user && (user.role === 'teacher' || user.role === 'admin') && user.isActive) {
+                return new Teacher(user);
+            }
+            
+            return null;
         } catch (error) {
             console.error('获取教师失败:', error);
             throw new Error('获取教师失败');
@@ -51,29 +65,51 @@ class TeacherService {
     }
 
     /**
-     * 验证教师登录
-     * @param {string} teacherId - 教师ID
-     * @param {string} password - 密码
+     * 根据用户名获取教师
+     * @param {string} username - 用户名
      * @returns {Promise<Teacher|null>}
      */
-    async validateTeacherLogin(teacherId, password) {
+    async getTeacherByUsername(username) {
         try {
-            const teacher = await this.getTeacherById(teacherId);
+            const adapter = await this.getAdapter();
+            const user = await adapter.getUserByUsername(this.classId, username);
+            
+            if (user && (user.role === 'teacher' || user.role === 'admin') && user.isActive) {
+                return new Teacher(user);
+            }
+            
+            return null;
+        } catch (error) {
+            console.error('获取教师失败:', error);
+            throw new Error('获取教师失败');
+        }
+    }
+
+    /**
+     * 验证教师登录（简化版本，V1中使用用户名登录）
+     * @param {string} username - 用户名
+     * @param {string} password - 密码（V1版本中暂时简化为用户名验证）
+     * @returns {Promise<Teacher|null>}
+     */
+    async validateTeacherLogin(username, password = null) {
+        try {
+            const teacher = await this.getTeacherByUsername(username);
             
             if (!teacher) {
+                console.log(`教师登录验证失败: 用户名不存在 (${username})`);
                 return null;
             }
 
-            // 验证密码
-            if (teacher.password !== password) {
+            // V1版本简化密码验证，实际项目中应该有密码验证
+            if (password && teacher.password && teacher.password !== password) {
+                console.log(`教师登录验证失败: 密码错误 (${username})`);
                 return null;
             }
 
-            // 返回教师信息（不包含密码）
-            const teacherInfo = teacher.toJSON();
-            delete teacherInfo.password;
+            console.log(`教师登录验证成功: ${teacher.name} (${username})`);
             
-            return new Teacher(teacherInfo);
+            // 返回教师信息（不包含密码）
+            return teacher.toSafeJSON ? new Teacher(teacher.toSafeJSON()) : teacher;
         } catch (error) {
             console.error('验证教师登录失败:', error);
             throw new Error('验证教师登录失败');
@@ -95,28 +131,22 @@ class TeacherService {
                 throw new Error('教师数据验证失败: ' + validation.errors.join(', '));
             }
 
-            // 检查教师ID是否已存在
-            const existingTeacher = await this.getTeacherById(teacher.id);
-            if (existingTeacher) {
-                throw new Error('教师ID已存在');
-            }
-
-            // 读取现有数据
-            const data = await this.dataAccess.readFile(this.filename, this.defaultData);
+            const adapter = await this.getAdapter();
             
-            // 添加新教师
-            data.teachers.push(teacher.toJSON());
+            // 准备用户数据
+            const userData = {
+                ...teacher.toJSON(),
+                username: teacher.id, // 使用教师ID作为用户名
+                role: teacher.role || 'teacher'
+            };
             
-            // 保存数据
-            await this.dataAccess.writeFile(this.filename, data);
+            const createdUser = await adapter.createUser(this.classId, userData);
             
-            console.log(`创建教师成功: ${teacher.name} (ID: ${teacher.id})`);
+            console.log(`创建教师成功: ${createdUser.name} (ID: ${createdUser.id})`);
             
             // 返回教师信息（不包含密码）
-            const teacherInfo = teacher.toJSON();
-            delete teacherInfo.password;
-            
-            return new Teacher(teacherInfo);
+            const teacherInfo = new Teacher(createdUser);
+            return teacherInfo.toSafeJSON ? new Teacher(teacherInfo.toSafeJSON()) : teacherInfo;
             
         } catch (error) {
             console.error('创建教师失败:', error);
@@ -132,38 +162,14 @@ class TeacherService {
      */
     async updateTeacher(teacherId, updateData) {
         try {
-            // 读取现有数据
-            const data = await this.dataAccess.readFile(this.filename, this.defaultData);
-            const teacherIndex = data.teachers.findIndex(t => t.id === teacherId);
+            const adapter = await this.getAdapter();
+            const updatedUser = await adapter.updateUser(this.classId, teacherId, updateData);
             
-            if (teacherIndex === -1) {
-                throw new Error('教师不存在');
-            }
-
-            // 合并更新数据
-            const existingTeacher = data.teachers[teacherIndex];
-            const updatedTeacherData = { ...existingTeacher, ...updateData };
-            const updatedTeacher = new Teacher(updatedTeacherData);
-            
-            // 验证更新后的教师数据
-            const validation = updatedTeacher.validate();
-            if (!validation.isValid) {
-                throw new Error('教师数据验证失败: ' + validation.errors.join(', '));
-            }
-
-            // 更新教师数据
-            data.teachers[teacherIndex] = updatedTeacher.toJSON();
-            
-            // 保存数据
-            await this.dataAccess.writeFile(this.filename, data);
-            
-            console.log(`更新教师成功: ${updatedTeacher.name} (ID: ${teacherId})`);
+            console.log(`更新教师成功: ${updatedUser.name} (ID: ${teacherId})`);
             
             // 返回教师信息（不包含密码）
-            const teacherInfo = updatedTeacher.toJSON();
-            delete teacherInfo.password;
-            
-            return new Teacher(teacherInfo);
+            const teacherInfo = new Teacher(updatedUser);
+            return teacherInfo.toSafeJSON ? new Teacher(teacherInfo.toSafeJSON()) : teacherInfo;
             
         } catch (error) {
             console.error('更新教师失败:', error);
@@ -178,19 +184,10 @@ class TeacherService {
      */
     async deleteTeacher(teacherId) {
         try {
-            // 读取现有数据
-            const data = await this.dataAccess.readFile(this.filename, this.defaultData);
-            const teacherIndex = data.teachers.findIndex(t => t.id === teacherId);
+            const adapter = await this.getAdapter();
             
-            if (teacherIndex === -1) {
-                throw new Error('教师不存在');
-            }
-
             // 软删除：设置为不活跃
-            data.teachers[teacherIndex].isActive = false;
-            
-            // 保存数据
-            await this.dataAccess.writeFile(this.filename, data);
+            await adapter.updateUser(this.classId, teacherId, { isActive: false });
             
             console.log(`删除教师成功: ID ${teacherId}`);
             return true;
@@ -207,28 +204,55 @@ class TeacherService {
      */
     async getTeacherStatistics() {
         try {
-            const teachers = await this.getAllTeachers(false);
+            const allTeachers = await this.getAllTeachers(false);
+            const activeTeachers = await this.getAllTeachers(true);
             
             const statistics = {
-                total: teachers.length,
-                active: teachers.filter(t => t.isActive).length,
-                inactive: teachers.filter(t => !t.isActive).length,
-                byDepartment: {}
+                total: allTeachers.length,
+                active: activeTeachers.length,
+                inactive: allTeachers.length - activeTeachers.length,
+                admins: activeTeachers.filter(t => t.role === 'admin').length,
+                teachers: activeTeachers.filter(t => t.role === 'teacher').length
             };
-            
-            // 按部门统计
-            teachers.forEach(teacher => {
-                if (teacher.isActive && teacher.department) {
-                    statistics.byDepartment[teacher.department] = 
-                        (statistics.byDepartment[teacher.department] || 0) + 1;
-                }
-            });
             
             return statistics;
             
         } catch (error) {
             console.error('获取教师统计失败:', error);
             throw error;
+        }
+    }
+
+    /**
+     * 检查教师权限（简化版本）
+     * @param {string} teacherId - 教师ID
+     * @param {string} permission - 权限类型
+     * @returns {Promise<boolean>}
+     */
+    async checkPermission(teacherId, permission) {
+        try {
+            const teacher = await this.getTeacherById(teacherId);
+            if (!teacher) {
+                return false;
+            }
+
+            // V1版本简化权限逻辑
+            switch (permission) {
+                case 'manage_students':
+                case 'manage_products':
+                case 'manage_orders':
+                case 'reset_points':
+                case 'manage_reward_penalty':
+                    return teacher.role === 'admin'; // 只有班主任可以管理
+                case 'add_points':
+                case 'subtract_points':
+                    return true; // 所有教师都可以操作积分
+                default:
+                    return false;
+            }
+        } catch (error) {
+            console.error('检查教师权限失败:', error);
+            return false;
         }
     }
 }

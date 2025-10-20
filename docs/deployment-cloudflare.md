@@ -134,7 +134,7 @@ crons = ["0 2 * * *"]  # 每天凌晨2点执行维护任务
 node scripts/init-d1-database.js
 
 # 或手动执行 SQL
-wrangler d1 execute classroom-points --file=sql/init.sql
+wrangler d1 execute classroom-points --file=sql/init_standalone.sql
 
 # 验证数据库结构
 wrangler d1 execute classroom-points --command="SELECT name FROM sqlite_master WHERE type='table'"

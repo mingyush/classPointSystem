@@ -63,7 +63,22 @@ class BackupService {
             
             archive.pipe(output);
             
-            // 添加所有数据文件
+            // 添加SQLite数据库文件
+            const dbPath = path.join(this.dataDir, 'classroom_points.db');
+            if (require('fs').existsSync(dbPath)) {
+                archive.file(dbPath, { name: 'classroom_points.db' });
+            }
+            
+            // 添加配置文件
+            const configFiles = ['config.json', 'v1.json'];
+            configFiles.forEach(file => {
+                const configPath = path.join('config', file);
+                if (require('fs').existsSync(configPath)) {
+                    archive.file(configPath, { name: `config/${file}` });
+                }
+            });
+            
+            // 添加所有JSON数据文件（兼容性）
             this.dataFiles.forEach(file => {
                 const filePath = path.join(this.dataDir, file);
                 if (require('fs').existsSync(filePath)) {
@@ -74,6 +89,22 @@ class BackupService {
             // 添加备份目录（最近的备份文件）
             if (require('fs').existsSync(this.backupDir)) {
                 archive.directory(this.backupDir, 'backups');
+            }
+            
+            // 添加日志文件（最近7天）
+            const logsDir = 'logs';
+            if (require('fs').existsSync(logsDir)) {
+                const logFiles = require('fs').readdirSync(logsDir);
+                const recentLogs = logFiles.filter(file => {
+                    const filePath = path.join(logsDir, file);
+                    const stats = require('fs').statSync(filePath);
+                    const daysDiff = (Date.now() - stats.mtime.getTime()) / (1000 * 60 * 60 * 24);
+                    return daysDiff <= 7;
+                });
+                
+                recentLogs.forEach(file => {
+                    archive.file(path.join(logsDir, file), { name: `logs/${file}` });
+                });
             }
             
             archive.finalize();
@@ -328,6 +359,162 @@ class BackupService {
         } catch (error) {
             console.error('获取数据统计失败:', error);
             return {};
+        }
+    }
+
+    /**
+     * 创建SQLite数据库备份
+     * @returns {Promise<string>} 备份文件路径
+     */
+    async createSQLiteBackup() {
+        await this.ensureExportDirectory();
+        
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const backupFileName = `sqlite-backup-${timestamp}.db`;
+        const backupPath = path.join(this.exportDir, backupFileName);
+        
+        const dbPath = path.join(this.dataDir, 'classroom_points.db');
+        
+        if (!(await this.fileExists(dbPath))) {
+            throw new Error('SQLite数据库文件不存在');
+        }
+        
+        try {
+            // 使用SQLite的VACUUM INTO命令创建压缩备份
+            const sqlite3 = require('sqlite3').verbose();
+            const db = new sqlite3.Database(dbPath);
+            
+            await new Promise((resolve, reject) => {
+                db.run(`VACUUM INTO '${backupPath}'`, (err) => {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        resolve();
+                    }
+                });
+                db.close();
+            });
+            
+            console.log(`SQLite数据库备份创建成功: ${backupFileName}`);
+            return backupPath;
+            
+        } catch (error) {
+            // 如果VACUUM INTO不可用，使用文件复制
+            console.warn('VACUUM INTO不可用，使用文件复制方式备份');
+            await fs.copyFile(dbPath, backupPath);
+            console.log(`SQLite数据库备份创建成功: ${backupFileName}`);
+            return backupPath;
+        }
+    }
+
+    /**
+     * 恢复SQLite数据库备份
+     * @param {string} backupFilePath - 备份文件路径
+     * @returns {Promise<boolean>} 恢复是否成功
+     */
+    async restoreSQLiteBackup(backupFilePath) {
+        try {
+            const dbPath = path.join(this.dataDir, 'classroom_points.db');
+            
+            // 验证备份文件
+            if (!(await this.fileExists(backupFilePath))) {
+                throw new Error('备份文件不存在');
+            }
+            
+            // 创建当前数据库的备份
+            const currentBackupPath = await this.createSQLiteBackup();
+            console.log(`当前数据库已备份到: ${currentBackupPath}`);
+            
+            // 恢复数据库
+            await fs.copyFile(backupFilePath, dbPath);
+            
+            // 验证恢复的数据库
+            const sqlite3 = require('sqlite3').verbose();
+            const db = new sqlite3.Database(dbPath);
+            
+            await new Promise((resolve, reject) => {
+                db.get("SELECT name FROM sqlite_master WHERE type='table' AND name='users'", (err, row) => {
+                    if (err) {
+                        reject(err);
+                    } else if (!row) {
+                        reject(new Error('恢复的数据库结构不正确'));
+                    } else {
+                        resolve();
+                    }
+                });
+                db.close();
+            });
+            
+            console.log('SQLite数据库恢复完成');
+            return true;
+            
+        } catch (error) {
+            console.error('SQLite数据库恢复失败:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 获取SQLite数据库统计信息
+     * @returns {Promise<object>} 数据库统计
+     */
+    async getSQLiteStats() {
+        try {
+            const dbPath = path.join(this.dataDir, 'classroom_points.db');
+            
+            if (!(await this.fileExists(dbPath))) {
+                return { error: 'SQLite数据库文件不存在' };
+            }
+            
+            const sqlite3 = require('sqlite3').verbose();
+            const db = new sqlite3.Database(dbPath);
+            
+            const stats = await new Promise((resolve, reject) => {
+                const queries = [
+                    "SELECT COUNT(*) as count FROM users WHERE role='student'",
+                    "SELECT COUNT(*) as count FROM users WHERE role='teacher'",
+                    "SELECT COUNT(*) as count FROM point_records",
+                    "SELECT COUNT(*) as count FROM products WHERE is_active=1",
+                    "SELECT COUNT(*) as count FROM orders",
+                    "SELECT COUNT(*) as count FROM reward_penalty_items WHERE is_active=1"
+                ];
+                
+                const results = {};
+                let completed = 0;
+                
+                queries.forEach((query, index) => {
+                    db.get(query, (err, row) => {
+                        if (err) {
+                            reject(err);
+                            return;
+                        }
+                        
+                        const keys = ['students', 'teachers', 'pointRecords', 'products', 'orders', 'rewardPenaltyItems'];
+                        results[keys[index]] = row.count;
+                        
+                        completed++;
+                        if (completed === queries.length) {
+                            resolve(results);
+                        }
+                    });
+                });
+            });
+            
+            db.close();
+            
+            // 获取文件大小
+            const fileStats = await fs.stat(dbPath);
+            
+            return {
+                ...stats,
+                databaseSize: fileStats.size,
+                lastModified: fileStats.mtime,
+                timestamp: new Date().toISOString()
+            };
+            
+        } catch (error) {
+            console.error('获取SQLite统计失败:', error);
+            return { error: error.message };
         }
     }
 

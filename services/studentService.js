@@ -1,24 +1,49 @@
-const DataAccess = require('../utils/dataAccess');
+const { storageAdapterFactory } = require('../adapters/storageAdapterFactory');
 const { StudentInfo } = require('../models/dataModels');
 
 /**
- * 学生数据服务层
+ * 学生数据服务层 - V1版本
  * 提供学生信息的CRUD操作和业务逻辑
+ * 适配新的数据库存储接口，简化单班级逻辑
  */
 class StudentService {
-    constructor() {
-        this.dataAccess = new DataAccess();
-        this.filename = 'students.json';
+    constructor(classId = null) {
+        // 从配置文件获取classId，如果没有则使用传入的参数，最后默认为'default'
+        if (!classId) {
+            try {
+                const fs = require('fs');
+                const path = require('path');
+                const configPath = path.join(__dirname, '../config/config.json');
+                const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+                classId = config.classId || 'default';
+            } catch (error) {
+                classId = 'default';
+            }
+        }
+        this.classId = classId;
+        this.adapter = null;
+    }
+
+    /**
+     * 获取存储适配器
+     */
+    async getAdapter() {
+        if (!this.adapter) {
+            this.adapter = await storageAdapterFactory.getDefaultAdapter();
+        }
+        return this.adapter;
     }
 
     /**
      * 获取所有学生信息
+     * @param {object} filters - 过滤条件
      * @returns {Promise<StudentInfo[]>}
      */
-    async getAllStudents() {
+    async getAllStudents(filters = {}) {
         try {
-            const data = await this.dataAccess.readFile(this.filename, { students: [] });
-            return data.students.map(student => new StudentInfo(student));
+            const adapter = await this.getAdapter();
+            const students = await adapter.getStudents(this.classId, filters);
+            return students.map(student => new StudentInfo(student));
         } catch (error) {
             console.error('获取学生列表失败:', error);
             throw new Error('获取学生列表失败');
@@ -36,12 +61,33 @@ class StudentService {
                 throw new Error('学号不能为空且必须为字符串');
             }
 
-            const students = await this.getAllStudents();
-            const student = students.find(s => s.id === studentId);
+            const adapter = await this.getAdapter();
+            const student = await adapter.getStudentById(this.classId, studentId);
             
-            return student || null;
+            return student ? new StudentInfo(student) : null;
         } catch (error) {
             console.error(`获取学生信息失败 (${studentId}):`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * 根据学号获取学生信息
+     * @param {string} studentNumber - 学号
+     * @returns {Promise<StudentInfo|null>}
+     */
+    async getStudentByNumber(studentNumber) {
+        try {
+            if (!studentNumber || typeof studentNumber !== 'string') {
+                throw new Error('学号不能为空且必须为字符串');
+            }
+
+            const adapter = await this.getAdapter();
+            const student = await adapter.getStudentByNumber(this.classId, studentNumber);
+            
+            return student ? new StudentInfo(student) : null;
+        } catch (error) {
+            console.error(`获取学生信息失败 (${studentNumber}):`, error);
             throw error;
         }
     }
@@ -60,20 +106,11 @@ class StudentService {
                 throw new Error('学生数据验证失败: ' + validation.errors.join(', '));
             }
 
-            // 检查学号是否已存在
-            const existingStudent = await this.getStudentById(student.id);
-            if (existingStudent) {
-                throw new Error(`学号 ${student.id} 已存在`);
-            }
-
-            // 添加到学生列表
-            const data = await this.dataAccess.readFile(this.filename, { students: [] });
-            data.students.push(student.toJSON());
+            const adapter = await this.getAdapter();
+            const createdStudent = await adapter.createStudent(this.classId, student.toJSON());
             
-            await this.dataAccess.writeFile(this.filename, data);
-            
-            console.log(`创建学生成功: ${student.name} (${student.id})`);
-            return student;
+            console.log(`创建学生成功: ${createdStudent.name} (${createdStudent.id})`);
+            return new StudentInfo(createdStudent);
         } catch (error) {
             console.error('创建学生失败:', error);
             throw error;
@@ -92,29 +129,11 @@ class StudentService {
                 throw new Error('学号不能为空且必须为字符串');
             }
 
-            const data = await this.dataAccess.readFile(this.filename, { students: [] });
-            const studentIndex = data.students.findIndex(s => s.id === studentId);
-            
-            if (studentIndex === -1) {
-                throw new Error(`学生不存在: ${studentId}`);
-            }
-
-            // 合并更新数据
-            const currentStudent = data.students[studentIndex];
-            const updatedStudentData = { ...currentStudent, ...updateData };
-            const updatedStudent = new StudentInfo(updatedStudentData);
-            
-            const validation = updatedStudent.validate();
-            if (!validation.isValid) {
-                throw new Error('学生数据验证失败: ' + validation.errors.join(', '));
-            }
-
-            // 更新数据
-            data.students[studentIndex] = updatedStudent.toJSON();
-            await this.dataAccess.writeFile(this.filename, data);
+            const adapter = await this.getAdapter();
+            const updatedStudent = await adapter.updateStudent(this.classId, studentId, updateData);
             
             console.log(`更新学生成功: ${updatedStudent.name} (${updatedStudent.id})`);
-            return updatedStudent;
+            return new StudentInfo(updatedStudent);
         } catch (error) {
             console.error(`更新学生失败 (${studentId}):`, error);
             throw error;
@@ -132,20 +151,13 @@ class StudentService {
                 throw new Error('学号不能为空且必须为字符串');
             }
 
-            const data = await this.dataAccess.readFile(this.filename, { students: [] });
-            const studentIndex = data.students.findIndex(s => s.id === studentId);
+            const adapter = await this.getAdapter();
+            const result = await adapter.deleteStudent(this.classId, studentId);
             
-            if (studentIndex === -1) {
-                throw new Error(`学生不存在: ${studentId}`);
+            if (result) {
+                console.log(`删除学生成功: ${studentId}`);
             }
-
-            const deletedStudent = data.students[studentIndex];
-            data.students.splice(studentIndex, 1);
-            
-            await this.dataAccess.writeFile(this.filename, data);
-            
-            console.log(`删除学生成功: ${deletedStudent.name} (${deletedStudent.id})`);
-            return true;
+            return result;
         } catch (error) {
             console.error(`删除学生失败 (${studentId}):`, error);
             throw error;
@@ -153,7 +165,7 @@ class StudentService {
     }
 
     /**
-     * 更新学生积分余额
+     * 更新学生积分余额（通过积分记录计算，不直接修改余额）
      * @param {string} studentId - 学号
      * @param {number} newBalance - 新的积分余额
      * @returns {Promise<StudentInfo>}
@@ -164,28 +176,12 @@ class StudentService {
                 throw new Error('积分余额必须为数字');
             }
 
+            // V1版本中，积分余额通过积分记录计算，这里只是为了兼容性
+            // 实际的积分变更应该通过PointsService来处理
+            console.warn('updateStudentBalance方法在V1版本中已废弃，请使用PointsService');
             return await this.updateStudent(studentId, { balance: newBalance });
         } catch (error) {
             console.error(`更新学生积分失败 (${studentId}):`, error);
-            throw error;
-        }
-    }
-
-    /**
-     * 根据班级获取学生列表
-     * @param {string} className - 班级名称
-     * @returns {Promise<StudentInfo[]>}
-     */
-    async getStudentsByClass(className) {
-        try {
-            if (!className || typeof className !== 'string') {
-                throw new Error('班级名称不能为空且必须为字符串');
-            }
-
-            const students = await this.getAllStudents();
-            return students.filter(student => student.class === className);
-        } catch (error) {
-            console.error(`获取班级学生失败 (${className}):`, error);
             throw error;
         }
     }
@@ -201,13 +197,8 @@ class StudentService {
                 throw new Error('搜索关键词不能为空且必须为字符串');
             }
 
-            const students = await this.getAllStudents();
-            const lowerKeyword = keyword.toLowerCase();
-            
-            return students.filter(student => 
-                student.id.toLowerCase().includes(lowerKeyword) ||
-                student.name.toLowerCase().includes(lowerKeyword)
-            );
+            const students = await this.getAllStudents({ search: keyword });
+            return students;
         } catch (error) {
             console.error(`搜索学生失败 (${keyword}):`, error);
             throw error;
@@ -216,21 +207,21 @@ class StudentService {
 
     /**
      * 验证学生登录（仅验证学号是否存在）
-     * @param {string} studentId - 学号
+     * @param {string} studentNumber - 学号
      * @returns {Promise<StudentInfo|null>}
      */
-    async validateStudentLogin(studentId) {
+    async validateStudentLogin(studentNumber) {
         try {
-            const student = await this.getStudentById(studentId);
+            const student = await this.getStudentByNumber(studentNumber);
             if (student) {
-                console.log(`学生登录验证成功: ${student.name} (${student.id})`);
+                console.log(`学生登录验证成功: ${student.name} (${studentNumber})`);
                 return student;
             } else {
-                console.log(`学生登录验证失败: 学号不存在 (${studentId})`);
+                console.log(`学生登录验证失败: 学号不存在 (${studentNumber})`);
                 return null;
             }
         } catch (error) {
-            console.error(`学生登录验证失败 (${studentId}):`, error);
+            console.error(`学生登录验证失败 (${studentNumber}):`, error);
             throw error;
         }
     }
@@ -241,29 +232,15 @@ class StudentService {
      */
     async getStudentStatistics() {
         try {
-            const students = await this.getAllStudents();
+            const adapter = await this.getAdapter();
+            const classStats = await adapter.getClassStatistics(this.classId);
             
-            const stats = {
-                totalStudents: students.length,
-                totalBalance: students.reduce((sum, student) => sum + student.balance, 0),
-                averageBalance: 0,
-                maxBalance: 0,
-                minBalance: 0,
-                classCounts: {}
+            return {
+                totalStudents: classStats.totalStudents,
+                activeStudents: classStats.totalStudents, // V1版本中所有学生都是活跃的
+                totalPointRecords: classStats.totalPointRecords,
+                averagePoints: classStats.averagePoints
             };
-
-            if (students.length > 0) {
-                stats.averageBalance = Math.round(stats.totalBalance / students.length * 100) / 100;
-                stats.maxBalance = Math.max(...students.map(s => s.balance));
-                stats.minBalance = Math.min(...students.map(s => s.balance));
-                
-                // 统计各班级人数
-                students.forEach(student => {
-                    stats.classCounts[student.class] = (stats.classCounts[student.class] || 0) + 1;
-                });
-            }
-
-            return stats;
         } catch (error) {
             console.error('获取学生统计信息失败:', error);
             throw error;

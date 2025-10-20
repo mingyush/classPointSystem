@@ -4,6 +4,8 @@
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
     overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
 .display-container header {
@@ -21,6 +23,21 @@
     display: flex;
     align-items: center;
     gap: 20px;
+    flex-wrap: wrap;
+}
+
+.session-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    background: rgba(255, 193, 7, 0.2);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.9em;
+}
+
+.session-info span {
+    font-weight: bold;
 }
 
 .header-left h1 {
@@ -113,7 +130,8 @@
 
 #displayContent {
     padding: 40px;
-    min-height: calc(100vh - 120px);
+    flex: 1;
+    min-height: 0;
 }
 
 /* 排行榜头部 */
@@ -691,4 +709,1082 @@
 .mode-indicator.normal-mode {
     background: rgba(78, 205, 196, 0.3);
     border: 1px solid rgba(78, 205, 196, 0.5);
+}
+/* V1 新
+增样式 */
+
+/* 底部操作栏 */
+.display-footer {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    padding: 20px 40px;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.footer-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.footer-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 25px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1em;
+}
+
+.footer-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+}
+
+.btn-icon {
+    font-size: 1.2em;
+}
+
+.footer-info {
+    font-size: 0.9em;
+    opacity: 0.8;
+}
+
+/* 弹窗样式 */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    backdrop-filter: blur(5px);
+}
+
+.modal-content {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 15px;
+    padding: 0;
+    max-width: 500px;
+    width: 90%;
+    max-height: 80vh;
+    overflow: hidden;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    animation: modalSlideIn 0.3s ease;
+}
+
+.modal-header {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 20px 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.modal-header h3 {
+    margin: 0;
+    color: white;
+    font-size: 1.3em;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.5em;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 50%;
+    transition: background 0.3s ease;
+}
+
+.close-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.modal-body {
+    padding: 30px;
+    color: white;
+}
+
+/* 学生查询表单 */
+.query-form {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.query-form input {
+    flex: 1;
+    padding: 12px 16px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 25px;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    font-size: 1em;
+}
+
+.query-form input::placeholder {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.query-form input:focus {
+    outline: none;
+    border-color: rgba(255, 255, 255, 0.6);
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.query-btn {
+    background: #4ecdc4;
+    border: none;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 25px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+
+.query-btn:hover {
+    background: #45b7aa;
+    transform: translateY(-2px);
+}
+
+.query-result {
+    min-height: 200px;
+}
+
+.student-info-card {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+    padding: 25px;
+    text-align: center;
+}
+
+.student-info-card h4 {
+    margin: 0 0 15px 0;
+    font-size: 1.5em;
+    color: #ffd700;
+}
+
+.student-info-card .balance {
+    font-size: 2em;
+    font-weight: bold;
+    margin: 15px 0;
+    color: #4ecdc4;
+}
+
+.student-info-card .balance.negative {
+    color: #ff6b6b;
+}
+
+.student-info-card .ranking {
+    font-size: 1.2em;
+    margin: 10px 0;
+    opacity: 0.9;
+}
+
+.recent-records {
+    margin-top: 20px;
+}
+
+.recent-records h5 {
+    margin: 0 0 15px 0;
+    font-size: 1.1em;
+    opacity: 0.9;
+}
+
+.record-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.record-item:last-child {
+    border-bottom: none;
+}
+
+.record-reason {
+    flex: 1;
+}
+
+.record-points {
+    font-weight: bold;
+}
+
+.record-points.positive {
+    color: #4ecdc4;
+}
+
+.record-points.negative {
+    color: #ff6b6b;
+}
+
+.record-time {
+    font-size: 0.8em;
+    opacity: 0.7;
+    margin-left: 10px;
+}
+
+/* 教师选择列表 */
+.teacher-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.teacher-item {
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-radius: 15px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.teacher-item:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.4);
+    transform: translateY(-2px);
+}
+
+.teacher-item h4 {
+    margin: 0 0 10px 0;
+    font-size: 1.2em;
+}
+
+.teacher-item .teacher-role {
+    font-size: 0.9em;
+    opacity: 0.8;
+}
+
+/* 奖惩项按钮区域 */
+.reward-penalty-section {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+    padding: 25px;
+    margin-top: 20px;
+}
+
+.reward-penalty-section h3 {
+    margin: 0 0 20px 0;
+    text-align: center;
+    font-size: 1.3em;
+}
+
+.reward-penalty-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+}
+
+.reward-penalty-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: 15px 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.3s ease;
+    text-align: center;
+    min-height: 80px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 5px;
+}
+
+.reward-penalty-btn.reward {
+    border-color: rgba(78, 205, 196, 0.5);
+    background: rgba(78, 205, 196, 0.1);
+}
+
+.reward-penalty-btn.penalty {
+    border-color: rgba(255, 107, 107, 0.5);
+    background: rgba(255, 107, 107, 0.1);
+}
+
+.reward-penalty-btn:hover {
+    transform: translateY(-2px);
+}
+
+.reward-penalty-btn.reward:hover {
+    background: rgba(78, 205, 196, 0.2);
+    border-color: rgba(78, 205, 196, 0.7);
+}
+
+.reward-penalty-btn.penalty:hover {
+    background: rgba(255, 107, 107, 0.2);
+    border-color: rgba(255, 107, 107, 0.7);
+}
+
+.reward-penalty-btn .btn-name {
+    font-size: 0.9em;
+}
+
+.reward-penalty-btn .btn-points {
+    font-size: 1.1em;
+    font-weight: bold;
+}
+
+/* 学生选择状态 */
+.student-card.selected {
+    background: rgba(255, 193, 7, 0.3);
+    border: 2px solid rgba(255, 193, 7, 0.6);
+    transform: scale(1.05);
+}
+
+.student-card.selected::after {
+    content: '✓';
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: #ffd700;
+    color: #333;
+    width: 25px;
+    height: 25px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 0.9em;
+}
+
+.student-card {
+    position: relative;
+}
+
+/* 操作提示 */
+.operation-hint {
+    background: rgba(255, 193, 7, 0.2);
+    border: 1px solid rgba(255, 193, 7, 0.4);
+    color: #ffd700;
+    padding: 15px;
+    border-radius: 10px;
+    text-align: center;
+    margin-bottom: 20px;
+    font-weight: bold;
+}
+
+/* 错误提示 */
+.error-message {
+    background: rgba(255, 107, 107, 0.2);
+    border: 1px solid rgba(255, 107, 107, 0.4);
+    color: #ff6b6b;
+    padding: 15px;
+    border-radius: 10px;
+    text-align: center;
+    margin: 15px 0;
+}
+
+.success-message {
+    background: rgba(78, 205, 196, 0.2);
+    border: 1px solid rgba(78, 205, 196, 0.4);
+    color: #4ecdc4;
+    padding: 15px;
+    border-radius: 10px;
+    text-align: center;
+    margin: 15px 0;
+}
+
+/* 动画 */
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-50px) scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* 上课模式特殊样式 */
+.class-mode .display-footer {
+    display: none;
+}
+
+.class-mode .header-left h1 {
+    color: #ffd700;
+}
+
+.class-mode .mode-indicator {
+    background: rgba(255, 107, 107, 0.3);
+    border: 1px solid rgba(255, 107, 107, 0.5);
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .display-footer {
+        padding: 15px 20px;
+    }
+    
+    .footer-content {
+        flex-direction: column;
+        gap: 10px;
+        text-align: center;
+    }
+    
+    .modal-content {
+        width: 95%;
+        margin: 10px;
+    }
+    
+    .modal-body {
+        padding: 20px;
+    }
+    
+    .query-form {
+        flex-direction: column;
+    }
+    
+    .teacher-list {
+        grid-template-columns: 1fr;
+    }
+    
+    .reward-penalty-grid {
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 10px;
+    }
+    
+    .reward-penalty-btn {
+        min-height: 70px;
+        padding: 10px 5px;
+    }
+}
+
+/* 隐藏在上课模式下的元素 */
+.class-mode .student-query-section {
+    display: none;
+}
+
+/* 平时模式下隐藏的元素 */
+.normal-mode .reward-penalty-section {
+    display: none;
+}/* ==
+================== 学生查询弹窗样式 ==================== */
+
+.large-modal .modal-content {
+    width: 90%;
+    max-width: 800px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.student-dashboard {
+    margin-top: 20px;
+}
+
+.student-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 0;
+    border-bottom: 2px solid #e0e0e0;
+    margin-bottom: 20px;
+}
+
+.student-info h4 {
+    margin: 0;
+    font-size: 1.2em;
+    color: #333;
+}
+
+.student-info p {
+    margin: 5px 0 0 0;
+    color: #666;
+    font-size: 0.9em;
+}
+
+.student-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.student-actions button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: background-color 0.3s;
+}
+
+.refresh-btn {
+    background-color: #4CAF50;
+    color: white;
+}
+
+.refresh-btn:hover {
+    background-color: #45a049;
+}
+
+.logout-btn {
+    background-color: #f44336;
+    color: white;
+}
+
+.logout-btn:hover {
+    background-color: #da190b;
+}
+
+.dashboard-tabs {
+    display: flex;
+    border-bottom: 2px solid #e0e0e0;
+    margin-bottom: 20px;
+}
+
+.tab-button {
+    flex: 1;
+    padding: 12px 16px;
+    border: none;
+    background-color: transparent;
+    cursor: pointer;
+    font-size: 0.9em;
+    color: #666;
+    transition: all 0.3s;
+    border-bottom: 3px solid transparent;
+}
+
+.tab-button:hover {
+    background-color: #f5f5f5;
+    color: #333;
+}
+
+.tab-button.active {
+    color: #2196F3;
+    border-bottom-color: #2196F3;
+    background-color: #f8f9ff;
+}
+
+.dashboard-content {
+    display: none;
+}
+
+.dashboard-content.active {
+    display: block;
+}
+
+/* 概览页面样式 */
+.overview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+}
+
+.info-card {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border: 1px solid #e0e0e0;
+}
+
+.info-card h3 {
+    margin: 0 0 15px 0;
+    font-size: 1.1em;
+    color: #333;
+    border-bottom: 2px solid #e0e0e0;
+    padding-bottom: 8px;
+}
+
+.balance-display {
+    text-align: center;
+    margin: 20px 0;
+}
+
+.balance-amount {
+    font-size: 2.5em;
+    font-weight: bold;
+    color: #4CAF50;
+    margin-bottom: 5px;
+}
+
+.balance-amount.negative {
+    color: #f44336;
+}
+
+.balance-label {
+    font-size: 0.9em;
+    color: #666;
+}
+
+.balance-status {
+    text-align: center;
+    padding: 8px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    background-color: #e8f5e8;
+    color: #2e7d32;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+}
+
+.stat-item {
+    text-align: center;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 6px;
+}
+
+.stat-value {
+    font-size: 1.8em;
+    font-weight: bold;
+    color: #2196F3;
+    margin-bottom: 5px;
+}
+
+.stat-label {
+    font-size: 0.8em;
+    color: #666;
+}
+
+.recent-history {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.recent-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.recent-item:last-child {
+    border-bottom: none;
+}
+
+.recent-reason {
+    font-size: 0.9em;
+    color: #333;
+    flex: 1;
+}
+
+.recent-points {
+    font-weight: bold;
+    font-size: 0.9em;
+}
+
+.recent-points.positive {
+    color: #4CAF50;
+}
+
+.recent-points.negative {
+    color: #f44336;
+}
+
+.view-all-btn {
+    width: 100%;
+    padding: 8px;
+    margin-top: 10px;
+    border: 1px solid #2196F3;
+    background-color: transparent;
+    color: #2196F3;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: all 0.3s;
+}
+
+.view-all-btn:hover {
+    background-color: #2196F3;
+    color: white;
+}
+
+/* 历史记录页面样式 */
+.history-section {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #e0e0e0;
+}
+
+.history-header h3 {
+    margin: 0;
+    color: #333;
+}
+
+.history-filter select {
+    padding: 6px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+.history-list {
+    max-height: 350px;
+    overflow-y: auto;
+}
+
+.history-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    margin-bottom: 8px;
+    background-color: #f8f9fa;
+    border-radius: 6px;
+    border-left: 4px solid #e0e0e0;
+}
+
+.history-item.positive {
+    border-left-color: #4CAF50;
+    background-color: #f1f8e9;
+}
+
+.history-item.negative {
+    border-left-color: #f44336;
+    background-color: #ffebee;
+}
+
+.history-info {
+    flex: 1;
+}
+
+.history-reason {
+    font-weight: 500;
+    color: #333;
+    margin-bottom: 4px;
+}
+
+.history-time {
+    font-size: 0.8em;
+    color: #666;
+    margin-bottom: 2px;
+}
+
+.history-type {
+    font-size: 0.8em;
+    color: #888;
+}
+
+.history-points {
+    font-size: 1.1em;
+    font-weight: bold;
+    margin-left: 15px;
+}
+
+.history-points.positive {
+    color: #4CAF50;
+}
+
+.history-points.negative {
+    color: #f44336;
+}
+
+/* 商品页面样式 */
+.products-section {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.products-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #e0e0e0;
+}
+
+.products-header h3 {
+    margin: 0;
+    color: #333;
+}
+
+.products-info {
+    font-size: 0.9em;
+    color: #666;
+}
+
+.products-info strong {
+    color: #2196F3;
+}
+
+.products-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+    max-height: 350px;
+    overflow-y: auto;
+}
+
+.product-card {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 15px;
+    text-align: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.product-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.product-name {
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 8px;
+    font-size: 1em;
+}
+
+.product-price {
+    font-size: 1.2em;
+    color: #2196F3;
+    font-weight: bold;
+    margin-bottom: 8px;
+}
+
+.product-stock {
+    font-size: 0.9em;
+    color: #4CAF50;
+    margin-bottom: 8px;
+}
+
+.product-stock.out-of-stock {
+    color: #f44336;
+}
+
+.product-description {
+    font-size: 0.8em;
+    color: #666;
+    margin-bottom: 12px;
+    line-height: 1.4;
+}
+
+.reserve-btn {
+    width: 100%;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 4px;
+    background-color: #2196F3;
+    color: white;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: background-color 0.3s;
+}
+
+.reserve-btn:hover:not(:disabled) {
+    background-color: #1976D2;
+}
+
+.reserve-btn:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+/* 预约页面样式 */
+.orders-section {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.orders-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #e0e0e0;
+}
+
+.orders-header h3 {
+    margin: 0;
+    color: #333;
+}
+
+.orders-filter select {
+    padding: 6px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+.orders-list {
+    max-height: 350px;
+    overflow-y: auto;
+}
+
+.order-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    margin-bottom: 10px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+}
+
+.order-info {
+    flex: 1;
+}
+
+.order-product {
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 4px;
+}
+
+.order-price {
+    color: #2196F3;
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+.order-time, .order-confirmed {
+    font-size: 0.8em;
+    color: #666;
+    margin-bottom: 2px;
+}
+
+.order-status {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.status-badge {
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.8em;
+    font-weight: bold;
+    text-align: center;
+    min-width: 60px;
+}
+
+.status-pending {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.status-confirmed {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.status-completed {
+    background-color: #cce5ff;
+    color: #004085;
+}
+
+.status-cancelled {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.cancel-order-btn {
+    padding: 4px 8px;
+    border: 1px solid #f44336;
+    background-color: transparent;
+    color: #f44336;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8em;
+    transition: all 0.3s;
+}
+
+.cancel-order-btn:hover {
+    background-color: #f44336;
+    color: white;
+}
+
+/* 无数据状态 */
+.no-data {
+    text-align: center;
+    padding: 40px 20px;
+    color: #666;
+    font-style: italic;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .large-modal .modal-content {
+        width: 95%;
+        margin: 20px auto;
+    }
+    
+    .student-header {
+        flex-direction: column;
+        gap: 15px;
+        text-align: center;
+    }
+    
+    .dashboard-tabs {
+        flex-wrap: wrap;
+    }
+    
+    .tab-button {
+        flex: 1 1 50%;
+        min-width: 120px;
+    }
+    
+    .overview-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .products-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .order-item {
+        flex-direction: column;
+        gap: 10px;
+        text-align: center;
+    }
+    
+    .order-status {
+        align-items: center;
+    }
+}
+
+/* 主页优化样式 */
+.primary-card {
+    border: 2px solid #2196F3;
+    background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%);
+}
+
+.primary-card .card-icon {
+    color: #2196F3;
+}
+
+.primary-card h2 {
+    color: #1976D2;
 }

@@ -1,15 +1,25 @@
-const DataAccess = require('../utils/dataAccess');
+const { storageAdapterFactory } = require('../adapters/storageAdapterFactory');
 const { Product } = require('../models/dataModels');
 
 /**
- * 商品服务类
+ * 商品服务类 - V1版本
  * 处理商品相关的业务逻辑
+ * 适配新的数据库存储接口
  */
 class ProductService {
-    constructor() {
-        this.dataAccess = new DataAccess();
-        this.filename = 'products.json';
-        this.defaultData = { products: [] };
+    constructor(classId = 'default') {
+        this.classId = classId; // 单班级ID，默认为'default'
+        this.adapter = null;
+    }
+
+    /**
+     * 获取存储适配器
+     */
+    async getAdapter() {
+        if (!this.adapter) {
+            this.adapter = await storageAdapterFactory.getDefaultAdapter();
+        }
+        return this.adapter;
     }
 
     /**
@@ -19,14 +29,14 @@ class ProductService {
      */
     async getAllProducts(activeOnly = false) {
         try {
-            const data = await this.dataAccess.readFile(this.filename, this.defaultData);
-            let products = data.products.map(productData => new Product(productData));
-            
+            const adapter = await this.getAdapter();
+            const filters = {};
             if (activeOnly) {
-                products = products.filter(product => product.isActive);
+                filters.isActive = true;
             }
             
-            return products;
+            const products = await adapter.getProducts(this.classId, filters);
+            return products.map(product => new Product(product));
         } catch (error) {
             console.error('获取商品列表失败:', error);
             throw new Error('获取商品列表失败');
@@ -40,10 +50,10 @@ class ProductService {
      */
     async getProductById(productId) {
         try {
-            const data = await this.dataAccess.readFile(this.filename, this.defaultData);
-            const productData = data.products.find(p => p.id === productId);
+            const adapter = await this.getAdapter();
+            const product = await adapter.getProductById(this.classId, productId);
             
-            return productData ? new Product(productData) : null;
+            return product ? new Product(product) : null;
         } catch (error) {
             console.error('获取商品失败:', error);
             throw new Error('获取商品失败');
@@ -65,27 +75,11 @@ class ProductService {
                 throw new Error('商品数据验证失败: ' + validation.errors.join(', '));
             }
 
-            // 检查商品名称是否已存在
-            const existingProducts = await this.getAllProducts();
-            const nameExists = existingProducts.some(p => 
-                p.name.toLowerCase() === product.name.toLowerCase() && p.isActive
-            );
+            const adapter = await this.getAdapter();
+            const createdProduct = await adapter.createProduct(this.classId, product.toJSON());
             
-            if (nameExists) {
-                throw new Error('商品名称已存在');
-            }
-
-            // 读取现有数据
-            const data = await this.dataAccess.readFile(this.filename, this.defaultData);
-            
-            // 添加新商品
-            data.products.push(product.toJSON());
-            
-            // 保存数据
-            await this.dataAccess.writeFile(this.filename, data);
-            
-            console.log(`创建商品成功: ${product.name} (ID: ${product.id})`);
-            return product;
+            console.log(`创建商品成功: ${createdProduct.name} (ID: ${createdProduct.id})`);
+            return new Product(createdProduct);
             
         } catch (error) {
             console.error('创建商品失败:', error);
@@ -101,46 +95,11 @@ class ProductService {
      */
     async updateProduct(productId, updateData) {
         try {
-            // 读取现有数据
-            const data = await this.dataAccess.readFile(this.filename, this.defaultData);
-            const productIndex = data.products.findIndex(p => p.id === productId);
-            
-            if (productIndex === -1) {
-                throw new Error('商品不存在');
-            }
-
-            // 合并更新数据
-            const existingProduct = data.products[productIndex];
-            const updatedProductData = { ...existingProduct, ...updateData };
-            const updatedProduct = new Product(updatedProductData);
-            
-            // 验证更新后的商品数据
-            const validation = updatedProduct.validate();
-            if (!validation.isValid) {
-                throw new Error('商品数据验证失败: ' + validation.errors.join(', '));
-            }
-
-            // 检查商品名称是否与其他商品冲突
-            if (updateData.name) {
-                const nameExists = data.products.some((p, index) => 
-                    index !== productIndex && 
-                    p.name.toLowerCase() === updatedProduct.name.toLowerCase() && 
-                    p.isActive
-                );
-                
-                if (nameExists) {
-                    throw new Error('商品名称已存在');
-                }
-            }
-
-            // 更新商品数据
-            data.products[productIndex] = updatedProduct.toJSON();
-            
-            // 保存数据
-            await this.dataAccess.writeFile(this.filename, data);
+            const adapter = await this.getAdapter();
+            const updatedProduct = await adapter.updateProduct(this.classId, productId, updateData);
             
             console.log(`更新商品成功: ${updatedProduct.name} (ID: ${productId})`);
-            return updatedProduct;
+            return new Product(updatedProduct);
             
         } catch (error) {
             console.error('更新商品失败:', error);
@@ -155,22 +114,13 @@ class ProductService {
      */
     async deleteProduct(productId) {
         try {
-            // 读取现有数据
-            const data = await this.dataAccess.readFile(this.filename, this.defaultData);
-            const productIndex = data.products.findIndex(p => p.id === productId);
+            const adapter = await this.getAdapter();
+            const result = await adapter.deleteProduct(this.classId, productId);
             
-            if (productIndex === -1) {
-                throw new Error('商品不存在');
+            if (result) {
+                console.log(`删除商品成功: ID ${productId}`);
             }
-
-            // 软删除：设置为不活跃
-            data.products[productIndex].isActive = false;
-            
-            // 保存数据
-            await this.dataAccess.writeFile(this.filename, data);
-            
-            console.log(`删除商品成功: ID ${productId}`);
-            return true;
+            return result;
             
         } catch (error) {
             console.error('删除商品失败:', error);
@@ -212,30 +162,11 @@ class ProductService {
      */
     async reduceStock(productId, quantity = 1) {
         try {
-            // 检查库存是否足够
-            const hasStock = await this.checkStock(productId, quantity);
-            if (!hasStock) {
-                throw new Error('库存不足');
-            }
-
-            // 读取现有数据
-            const data = await this.dataAccess.readFile(this.filename, this.defaultData);
-            const productIndex = data.products.findIndex(p => p.id === productId);
+            const adapter = await this.getAdapter();
+            const updatedProduct = await adapter.updateProductStock(this.classId, productId, -quantity);
             
-            if (productIndex === -1) {
-                throw new Error('商品不存在');
-            }
-
-            // 减少库存
-            data.products[productIndex].stock -= quantity;
-            
-            // 保存数据
-            await this.dataAccess.writeFile(this.filename, data);
-            
-            const updatedProduct = new Product(data.products[productIndex]);
             console.log(`减少库存成功: ${updatedProduct.name} 减少 ${quantity}，剩余 ${updatedProduct.stock}`);
-            
-            return updatedProduct;
+            return new Product(updatedProduct);
             
         } catch (error) {
             console.error('减少库存失败:', error);
@@ -251,24 +182,11 @@ class ProductService {
      */
     async increaseStock(productId, quantity = 1) {
         try {
-            // 读取现有数据
-            const data = await this.dataAccess.readFile(this.filename, this.defaultData);
-            const productIndex = data.products.findIndex(p => p.id === productId);
+            const adapter = await this.getAdapter();
+            const updatedProduct = await adapter.updateProductStock(this.classId, productId, quantity);
             
-            if (productIndex === -1) {
-                throw new Error('商品不存在');
-            }
-
-            // 增加库存
-            data.products[productIndex].stock += quantity;
-            
-            // 保存数据
-            await this.dataAccess.writeFile(this.filename, data);
-            
-            const updatedProduct = new Product(data.products[productIndex]);
             console.log(`增加库存成功: ${updatedProduct.name} 增加 ${quantity}，现有 ${updatedProduct.stock}`);
-            
-            return updatedProduct;
+            return new Product(updatedProduct);
             
         } catch (error) {
             console.error('增加库存失败:', error);
@@ -311,18 +229,14 @@ class ProductService {
      */
     async searchProducts(keyword, activeOnly = true) {
         try {
-            const products = await this.getAllProducts(activeOnly);
-            
-            if (!keyword || keyword.trim() === '') {
-                return products;
+            const filters = { search: keyword };
+            if (activeOnly) {
+                filters.isActive = true;
             }
-
-            const searchTerm = keyword.toLowerCase().trim();
             
-            return products.filter(product => 
-                product.name.toLowerCase().includes(searchTerm) ||
-                product.description.toLowerCase().includes(searchTerm)
-            );
+            const adapter = await this.getAdapter();
+            const products = await adapter.getProducts(this.classId, filters);
+            return products.map(product => new Product(product));
             
         } catch (error) {
             console.error('搜索商品失败:', error);

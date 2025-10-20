@@ -15,9 +15,9 @@ const DEFAULT_CONFIG = {
     pointsResetEnabled: false,
     maxPointsPerOperation: 100,
     semesterStartDate: new Date().toISOString(),
-    className: '花儿起舞',
+    className: '初一钱班',
     author: '茗雨',
-    copyright: '© 2025 花儿起舞班级积分管理系统 | 作者：茗雨'
+    copyright: '© 2025 初一钱班班级积分管理系统 | 作者：茗雨'
 };
 
 /**

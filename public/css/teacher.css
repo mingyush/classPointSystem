@@ -1306,4 +1306,357 @@
     border-radius: 10px;
     padding: 20px;
     margin: 20px 0;
+}/* ========
+============ 学生管理样式 ==================== */
+.students-management {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+}
+
+.student-form {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 10px;
+}
+
+.students-list {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 10px;
+}
+
+.students-search {
+    margin-bottom: 15px;
+}
+
+.students-search input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 1em;
+}
+
+.student-item-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    margin-bottom: 10px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.student-item-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s ease;
+}
+
+.student-item-card .student-info {
+    flex: 1;
+}
+
+.student-item-card .student-name {
+    font-weight: bold;
+    font-size: 1.1em;
+    margin-bottom: 5px;
+}
+
+.student-item-card .student-details {
+    font-size: 0.9em;
+    color: #6c757d;
+}
+
+.student-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* ==================== 教师管理样式 ==================== */
+.teachers-management {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+}
+
+.teacher-form {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 10px;
+}
+
+.teachers-list {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 10px;
+}
+
+.teacher-item-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    margin-bottom: 10px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.teacher-item-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s ease;
+}
+
+.teacher-item-card .teacher-info {
+    flex: 1;
+}
+
+.teacher-item-card .teacher-name {
+    font-weight: bold;
+    font-size: 1.1em;
+    margin-bottom: 5px;
+}
+
+.teacher-item-card .teacher-details {
+    font-size: 0.9em;
+    color: #6c757d;
+}
+
+.teacher-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* ==================== 奖惩项管理样式 ==================== */
+.rewards-management {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+}
+
+.reward-form {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 10px;
+}
+
+.rewards-list {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 10px;
+}
+
+.rewards-filter {
+    margin-bottom: 15px;
+}
+
+.rewards-filter select {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 1em;
+}
+
+.reward-item-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    margin-bottom: 10px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    border-left: 4px solid #6c757d;
+}
+
+.reward-item-card.reward {
+    border-left-color: #28a745;
+}
+
+.reward-item-card.penalty {
+    border-left-color: #dc3545;
+}
+
+.reward-item-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s ease;
+}
+
+.reward-item-card .reward-info {
+    flex: 1;
+}
+
+.reward-item-card .reward-name {
+    font-weight: bold;
+    font-size: 1.1em;
+    margin-bottom: 5px;
+}
+
+.reward-item-card .reward-details {
+    font-size: 0.9em;
+    color: #6c757d;
+}
+
+.reward-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.toggle-btn {
+    background: #17a2b8;
+    color: white;
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: background-color 0.3s ease;
+}
+
+.toggle-btn:hover {
+    background: #138496;
+}
+
+/* ==================== 通用表单样式增强 ==================== */
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #495057;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ced4da;
+    border-radius: 5px;
+    font-size: 1em;
+    transition: border-color 0.3s ease;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: #28a745;
+    box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.25);
+}
+
+.form-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.form-actions button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+
+.form-actions button[type="submit"] {
+    background: #28a745;
+    color: white;
+}
+
+.form-actions button[type="submit"]:hover {
+    background: #218838;
+    transform: translateY(-1px);
+}
+
+.form-actions button[type="button"] {
+    background: #6c757d;
+    color: white;
+}
+
+.form-actions button[type="button"]:hover {
+    background: #5a6268;
+    transform: translateY(-1px);
+}
+
+/* ==================== 响应式设计增强 ==================== */
+@media (max-width: 768px) {
+    .students-management,
+    .teachers-management,
+    .rewards-management {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+    
+    .student-item-card,
+    .teacher-item-card,
+    .reward-item-card {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 15px;
+    }
+    
+    .student-actions,
+    .teacher-actions,
+    .reward-actions {
+        justify-content: center;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+    }
+    
+    .form-actions button {
+        width: 100%;
+    }
+}
+
+/* ==================== 状态指示器 ==================== */
+.status-active {
+    color: #28a745;
+    font-weight: bold;
+}
+
+.status-inactive {
+    color: #dc3545;
+    font-weight: bold;
+}
+
+.badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.8em;
+    font-weight: bold;
+    text-align: center;
+}
+
+.badge-success {
+    background: #d4edda;
+    color: #155724;
+}
+
+.badge-danger {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.badge-warning {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.badge-info {
+    background: #d1ecf1;
+    color: #0c5460;
 }

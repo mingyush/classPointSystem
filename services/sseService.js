@@ -129,6 +129,23 @@ class SSEService {
     }
 
     /**
+     * 广播奖惩项更新事件
+     */
+    broadcastRewardPenaltyUpdate(data) {
+        if (!this.broadcastFunction) {
+            console.warn('SSE广播函数未设置');
+            return;
+        }
+
+        this.broadcastFunction('reward_penalty_updated', {
+            type: 'reward_penalty_update',
+            action: data.action, // 'create', 'update', 'delete'
+            item: data.item,
+            itemId: data.itemId
+        });
+    }
+
+    /**
      * 广播数据重置事件
      */
     broadcastDataReset(type) {

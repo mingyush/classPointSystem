@@ -55,10 +55,15 @@ router.get('/:id', authenticateToken,
             throw createError('STUDENT_NOT_FOUND', '学生不存在');
         }
         
+        // 计算实时积分余额
+        const balance = await pointsService.calculateStudentBalance(student.id);
+        const studentData = student.toJSON();
+        studentData.balance = balance;
+        
         res.json({
             success: true,
             message: '获取学生信息成功',
-            data: student.toJSON()
+            data: studentData
         });
     })
 );
@@ -70,7 +75,7 @@ router.get('/:id', authenticateToken,
 router.post('/', authenticateToken, requireTeacher,
     operationLogger('创建学生'),
     asyncHandler(async (req, res) => {
-        const { id, name, class: className, balance = 0 } = req.body;
+        const { id, name, balance = 0 } = req.body;
         
         // 参数验证
         if (!id || typeof id !== 'string' || id.trim().length === 0) {
@@ -81,10 +86,6 @@ router.post('/', authenticateToken, requireTeacher,
             throw createError('INVALID_STUDENT_NAME', '姓名不能为空');
         }
         
-        if (!className || typeof className !== 'string' || className.trim().length === 0) {
-            throw createError('INVALID_CLASS_NAME', '班级不能为空');
-        }
-        
         if (typeof balance !== 'number' || balance < 0) {
             throw createError('INVALID_BALANCE', '初始积分必须为非负数');
         }
@@ -93,7 +94,6 @@ router.post('/', authenticateToken, requireTeacher,
         const student = await studentService.createStudent({
             id: id.trim(),
             name: name.trim(),
-            class: className.trim(),
             balance
         });
         

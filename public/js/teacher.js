@@ -220,13 +220,24 @@ function renderTeacherContent() {
     container.innerHTML = `
         <div class="management-tabs">
             <button class="tab-button active" onclick="switchTab('points')">积分管理</button>
+            <button class="tab-button" onclick="switchTab('students')">学生管理</button>
+            <button class="tab-button" onclick="switchTab('teachers')">教师管理</button>
             <button class="tab-button" onclick="switchTab('products')">商品管理</button>
             <button class="tab-button" onclick="switchTab('orders')">预约管理</button>
-            <button class="tab-button" onclick="switchTab('system')">系统设置</button>
+            <button class="tab-button" onclick="switchTab('rewards')">常用奖惩项</button>
+            <button class="tab-button" onclick="switchTab('system')">班级设置</button>
         </div>
         
         <div id="pointsTab" class="tab-content active">
             ${renderPointsManagement()}
+        </div>
+        
+        <div id="studentsTab" class="tab-content">
+            ${renderStudentsManagement()}
+        </div>
+        
+        <div id="teachersTab" class="tab-content">
+            ${renderTeachersManagement()}
         </div>
         
         <div id="productsTab" class="tab-content">
@@ -235,6 +246,10 @@ function renderTeacherContent() {
         
         <div id="ordersTab" class="tab-content">
             ${renderOrdersManagement()}
+        </div>
+        
+        <div id="rewardsTab" class="tab-content">
+            ${renderRewardsManagement()}
         </div>
         
         <div id="systemTab" class="tab-content">
@@ -265,11 +280,20 @@ function switchTab(tabName) {
         case 'points':
             initPointsManagement();
             break;
+        case 'students':
+            initStudentsManagement();
+            break;
+        case 'teachers':
+            initTeachersManagement();
+            break;
         case 'products':
             initProductsManagement();
             break;
         case 'orders':
             initOrdersManagement();
+            break;
+        case 'rewards':
+            initRewardsManagement();
             break;
         case 'system':
             initSystemSettings();
@@ -444,7 +468,7 @@ function renderSystemSettings() {
                     
                     <div class="config-group">
                         <label for="className">班级名称:</label>
-                        <input type="text" id="className" placeholder="请输入班级名称" value="花儿起舞">
+                        <input type="text" id="className" placeholder="请输入班级名称" value="初一钱班">
                         <small>显示在系统标题和页面中的班级名称</small>
                     </div>
                     
@@ -456,7 +480,7 @@ function renderSystemSettings() {
                     
                     <div class="config-group">
                         <label for="copyright">版权信息:</label>
-                        <input type="text" id="copyright" placeholder="请输入版权信息" value="© 2025 花儿起舞班级积分管理系统 | 作者：茗雨">
+                        <input type="text" id="copyright" placeholder="请输入版权信息" value="© 2025 初一钱班班级积分管理系统 | 作者：茗雨">
                         <small>显示在页面底部的版权信息</small>
                     </div>
                     
@@ -548,7 +572,7 @@ function renderSystemSettings() {
             <div class="setting-section">
                 <h3>系统信息</h3>
                 <div class="system-info">
-                    <p>班级名称: <span id="currentClassName">花儿起舞</span></p>
+                    <p>班级名称: <span id="currentClassName">初一钱班</span></p>
                     <p>学生总数: <span id="studentCount">${students.length}</span></p>
                     <p>商品总数: <span id="productCount">${products.length}</span></p>
                     <p>待处理预约: <span id="pendingOrderCount">${orders.filter(o => o.status === 'pending').length}</span></p>
@@ -1121,9 +1145,9 @@ async function loadSystemConfig() {
         document.getElementById('autoRefreshInterval').value = config.autoRefreshInterval || 30;
         document.getElementById('maxPointsPerOperation').value = config.maxPointsPerOperation || 100;
         document.getElementById('pointsResetEnabled').checked = config.pointsResetEnabled || false;
-        document.getElementById('className').value = config.className || '花儿起舞';
+        document.getElementById('className').value = config.className || '初一钱班';
         document.getElementById('author').value = config.author || '茗雨';
-        document.getElementById('copyright').value = config.copyright || '© 2025 花儿起舞班级积分管理系统 | 作者：茗雨';
+        document.getElementById('copyright').value = config.copyright || '© 2025 初一钱班班级积分管理系统 | 作者：茗雨';
 
         // 设置学期开始日期
         if (config.semesterStartDate) {
@@ -1135,7 +1159,7 @@ async function loadSystemConfig() {
         const currentClassNameElement = document.getElementById('currentClassName');
         const currentAuthorElement = document.getElementById('currentAuthor');
         if (currentClassNameElement) {
-            currentClassNameElement.textContent = config.className || '花儿起舞';
+            currentClassNameElement.textContent = config.className || '初一钱班';
         }
         if (currentAuthorElement) {
             currentAuthorElement.textContent = config.author || '茗雨';
@@ -1663,4 +1687,649 @@ function enableAllControls() {
         element.disabled = false;
         element.style.opacity = '1';
     });
+}// ===
+================= 学生管理模块 ====================
+
+// 渲染学生管理
+function renderStudentsManagement() {
+    return `
+        <h2>学生管理</h2>
+        <div class="students-management">
+            <div class="student-form">
+                <h3>添加/编辑学生</h3>
+                <form id="studentForm" onsubmit="saveStudent(event)">
+                    <input type="hidden" id="studentId">
+                    
+                    <div class="form-group">
+                        <label>学生姓名:</label>
+                        <input type="text" id="studentName" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>学号:</label>
+                        <input type="text" id="studentNumber" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>初始积分:</label>
+                        <input type="number" id="studentInitialPoints" value="0" min="0">
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" id="saveStudentBtn">保存学生</button>
+                        <button type="button" onclick="resetStudentForm()">重置</button>
+                    </div>
+                </form>
+            </div>
+            
+            <div class="students-list">
+                <h3>学生列表</h3>
+                <div class="students-search">
+                    <input type="text" id="studentsSearchInput" placeholder="搜索学生姓名或学号..." 
+                           onkeyup="filterStudentsList(this.value)">
+                </div>
+                <div id="studentsListContainer">
+                    <!-- 学生列表将在这里动态生成 -->
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// 初始化学生管理
+function initStudentsManagement() {
+    renderStudentsListContainer();
+}
+
+// 渲染学生列表容器
+function renderStudentsListContainer(filteredStudents = null) {
+    const container = document.getElementById('studentsListContainer');
+    const studentsToShow = filteredStudents || students;
+
+    if (studentsToShow.length === 0) {
+        container.innerHTML = '<div class="no-data">暂无学生数据</div>';
+        return;
+    }
+
+    // 按学号排序
+    const sortedStudents = [...studentsToShow].sort((a, b) => {
+        const idA = String(a.id || '').padStart(10, '0');
+        const idB = String(b.id || '').padStart(10, '0');
+        return idA.localeCompare(idB);
+    });
+
+    container.innerHTML = sortedStudents.map(student => `
+        <div class="student-item-card">
+            <div class="student-info">
+                <div class="student-name">${student.name}</div>
+                <div class="student-details">
+                    学号: ${student.id} | 积分: ${student.balance || 0}分
+                </div>
+            </div>
+            <div class="student-actions">
+                <button class="edit-btn" onclick="editStudent('${student.id}')">编辑</button>
+                <button class="delete-btn" onclick="deleteStudent('${student.id}')">删除</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// 筛选学生列表
+function filterStudentsList(searchTerm) {
+    if (!searchTerm.trim()) {
+        renderStudentsListContainer();
+        return;
+    }
+
+    const filtered = students.filter(student =>
+        student.name.includes(searchTerm) ||
+        student.id.includes(searchTerm)
+    );
+
+    renderStudentsListContainer(filtered);
+}
+
+// 保存学生
+async function saveStudent(event) {
+    event.preventDefault();
+
+    const studentId = document.getElementById('studentId').value;
+    const name = document.getElementById('studentName').value.trim();
+    const number = document.getElementById('studentNumber').value.trim();
+    const initialPoints = parseInt(document.getElementById('studentInitialPoints').value) || 0;
+
+    if (!name || !number) {
+        showMessage('请填写学生姓名和学号', 'warning');
+        return;
+    }
+
+    try {
+        const isEdit = !!studentId;
+        const endpoint = isEdit ? `/api/students/${studentId}` : '/api/students';
+        const method = isEdit ? 'PUT' : 'POST';
+
+        const response = await apiRequest(endpoint, {
+            method: method,
+            body: JSON.stringify({
+                name: name,
+                id: number,
+                balance: initialPoints
+            })
+        });
+
+        // 更新本地数据
+        const studentData = response.data?.student || response.student;
+        if (isEdit) {
+            const index = students.findIndex(s => s.id === studentId);
+            if (index !== -1) {
+                students[index] = studentData;
+            }
+        } else {
+            students.push(studentData);
+        }
+
+        // 刷新显示
+        renderStudentsListContainer();
+        resetStudentForm();
+
+        showMessage(`学生${isEdit ? '更新' : '添加'}成功`, 'success');
+
+    } catch (error) {
+        console.error('保存学生失败:', error);
+        showMessage('保存学生失败，请重试', 'error');
+    }
+}
+
+// 编辑学生
+function editStudent(studentId) {
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+
+    document.getElementById('studentId').value = student.id;
+    document.getElementById('studentName').value = student.name;
+    document.getElementById('studentNumber').value = student.id;
+    document.getElementById('studentInitialPoints').value = student.balance || 0;
+
+    document.getElementById('saveStudentBtn').textContent = '更新学生';
+}
+
+// 删除学生
+async function deleteStudent(studentId) {
+    if (!confirm('确定要删除这个学生吗？此操作不可恢复！')) return;
+
+    try {
+        await apiRequest(`/api/students/${studentId}`, {
+            method: 'DELETE'
+        });
+
+        // 从本地数据中移除
+        students = students.filter(s => s.id !== studentId);
+
+        // 刷新显示
+        renderStudentsListContainer();
+
+        showMessage('学生删除成功', 'success');
+
+    } catch (error) {
+        console.error('删除学生失败:', error);
+        showMessage('删除学生失败，请重试', 'error');
+    }
+}
+
+// 重置学生表单
+function resetStudentForm() {
+    document.getElementById('studentForm').reset();
+    document.getElementById('studentId').value = '';
+    document.getElementById('saveStudentBtn').textContent = '保存学生';
+}
+
+// ==================== 教师管理模块 ====================
+
+// 渲染教师管理
+function renderTeachersManagement() {
+    return `
+        <h2>教师管理</h2>
+        <div class="teachers-management">
+            <div class="teacher-form">
+                <h3>添加/编辑教师</h3>
+                <form id="teacherForm" onsubmit="saveTeacher(event)">
+                    <input type="hidden" id="teacherId">
+                    
+                    <div class="form-group">
+                        <label>教师姓名:</label>
+                        <input type="text" id="teacherName" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>教师工号:</label>
+                        <input type="text" id="teacherNumber" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>教师角色:</label>
+                        <select id="teacherRole" required>
+                            <option value="">请选择角色</option>
+                            <option value="admin">班主任</option>
+                            <option value="teacher">任课教师</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>登录密码:</label>
+                        <input type="password" id="teacherPassword" placeholder="留空则不修改密码">
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" id="saveTeacherBtn">保存教师</button>
+                        <button type="button" onclick="resetTeacherForm()">重置</button>
+                    </div>
+                </form>
+            </div>
+            
+            <div class="teachers-list">
+                <h3>教师列表</h3>
+                <div id="teachersListContainer">
+                    <!-- 教师列表将在这里动态生成 -->
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// 初始化教师管理
+function initTeachersManagement() {
+    loadTeachers();
+}
+
+// 加载教师列表
+async function loadTeachers() {
+    try {
+        const response = await apiRequest('/api/auth/teachers');
+        const teachers = response.data?.teachers || response.teachers || [];
+        renderTeachersListContainer(teachers);
+    } catch (error) {
+        console.error('加载教师列表失败:', error);
+        document.getElementById('teachersListContainer').innerHTML = 
+            '<div class="error">加载教师列表失败</div>';
+    }
+}
+
+// 渲染教师列表容器
+function renderTeachersListContainer(teachers) {
+    const container = document.getElementById('teachersListContainer');
+
+    if (!teachers || teachers.length === 0) {
+        container.innerHTML = '<div class="no-data">暂无教师数据</div>';
+        return;
+    }
+
+    container.innerHTML = teachers.map(teacher => `
+        <div class="teacher-item-card">
+            <div class="teacher-info">
+                <div class="teacher-name">${teacher.name}</div>
+                <div class="teacher-details">
+                    工号: ${teacher.id} | 角色: ${teacher.role === 'admin' ? '班主任' : '任课教师'}
+                </div>
+            </div>
+            <div class="teacher-actions">
+                <button class="edit-btn" onclick="editTeacher('${teacher.id}')">编辑</button>
+                <button class="delete-btn" onclick="deleteTeacher('${teacher.id}')">删除</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// 保存教师
+async function saveTeacher(event) {
+    event.preventDefault();
+
+    const teacherId = document.getElementById('teacherId').value;
+    const name = document.getElementById('teacherName').value.trim();
+    const number = document.getElementById('teacherNumber').value.trim();
+    const role = document.getElementById('teacherRole').value;
+    const password = document.getElementById('teacherPassword').value;
+
+    if (!name || !number || !role) {
+        showMessage('请填写完整的教师信息', 'warning');
+        return;
+    }
+
+    try {
+        const isEdit = !!teacherId;
+        const endpoint = isEdit ? `/api/auth/teachers/${teacherId}` : '/api/auth/teachers';
+        const method = isEdit ? 'PUT' : 'POST';
+
+        const requestData = {
+            name: name,
+            id: number,
+            role: role
+        };
+
+        if (password) {
+            requestData.password = password;
+        }
+
+        await apiRequest(endpoint, {
+            method: method,
+            body: JSON.stringify(requestData)
+        });
+
+        // 刷新教师列表
+        loadTeachers();
+        resetTeacherForm();
+
+        showMessage(`教师${isEdit ? '更新' : '添加'}成功`, 'success');
+
+    } catch (error) {
+        console.error('保存教师失败:', error);
+        showMessage('保存教师失败，请重试', 'error');
+    }
+}
+
+// 编辑教师
+async function editTeacher(teacherId) {
+    try {
+        const response = await apiRequest(`/api/auth/teachers/${teacherId}`);
+        const teacher = response.data?.teacher || response.teacher;
+        
+        if (teacher) {
+            document.getElementById('teacherId').value = teacher.id;
+            document.getElementById('teacherName').value = teacher.name;
+            document.getElementById('teacherNumber').value = teacher.id;
+            document.getElementById('teacherRole').value = teacher.role;
+            document.getElementById('teacherPassword').value = '';
+
+            document.getElementById('saveTeacherBtn').textContent = '更新教师';
+        }
+    } catch (error) {
+        console.error('获取教师信息失败:', error);
+        showMessage('获取教师信息失败', 'error');
+    }
+}
+
+// 删除教师
+async function deleteTeacher(teacherId) {
+    if (!confirm('确定要删除这个教师吗？此操作不可恢复！')) return;
+
+    try {
+        await apiRequest(`/api/auth/teachers/${teacherId}`, {
+            method: 'DELETE'
+        });
+
+        // 刷新教师列表
+        loadTeachers();
+
+        showMessage('教师删除成功', 'success');
+
+    } catch (error) {
+        console.error('删除教师失败:', error);
+        showMessage('删除教师失败，请重试', 'error');
+    }
+}
+
+// 重置教师表单
+function resetTeacherForm() {
+    document.getElementById('teacherForm').reset();
+    document.getElementById('teacherId').value = '';
+    document.getElementById('saveTeacherBtn').textContent = '保存教师';
+}
+
+// ==================== 常用奖惩项管理模块 ====================
+
+// 渲染常用奖惩项管理
+function renderRewardsManagement() {
+    return `
+        <h2>常用奖惩项管理</h2>
+        <div class="rewards-management">
+            <div class="reward-form">
+                <h3>添加/编辑奖惩项</h3>
+                <form id="rewardForm" onsubmit="saveReward(event)">
+                    <input type="hidden" id="rewardId">
+                    
+                    <div class="form-group">
+                        <label>奖惩项名称:</label>
+                        <input type="text" id="rewardName" required placeholder="如：课堂发言、迟到等">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>积分数值:</label>
+                        <input type="number" id="rewardPoints" required placeholder="正数为奖励，负数为惩罚">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>类型:</label>
+                        <select id="rewardType" required>
+                            <option value="">请选择类型</option>
+                            <option value="reward">奖励</option>
+                            <option value="penalty">惩罚</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>排序权重:</label>
+                        <input type="number" id="rewardSortOrder" value="0" min="0" placeholder="数字越小越靠前">
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" id="saveRewardBtn">保存奖惩项</button>
+                        <button type="button" onclick="resetRewardForm()">重置</button>
+                    </div>
+                </form>
+            </div>
+            
+            <div class="rewards-list">
+                <h3>奖惩项列表</h3>
+                <div class="rewards-filter">
+                    <select id="rewardsFilter" onchange="filterRewards()">
+                        <option value="">全部类型</option>
+                        <option value="reward">奖励</option>
+                        <option value="penalty">惩罚</option>
+                    </select>
+                </div>
+                <div id="rewardsListContainer">
+                    <!-- 奖惩项列表将在这里动态生成 -->
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// 初始化常用奖惩项管理
+function initRewardsManagement() {
+    loadRewards();
+}
+
+// 加载奖惩项列表
+async function loadRewards() {
+    try {
+        const response = await apiRequest('/api/reward-penalty');
+        const rewards = response.data?.items || response.items || [];
+        renderRewardsListContainer(rewards);
+    } catch (error) {
+        console.error('加载奖惩项列表失败:', error);
+        document.getElementById('rewardsListContainer').innerHTML = 
+            '<div class="error">加载奖惩项列表失败</div>';
+    }
+}
+
+// 渲染奖惩项列表容器
+function renderRewardsListContainer(rewards, filter = '') {
+    const container = document.getElementById('rewardsListContainer');
+
+    if (!rewards || rewards.length === 0) {
+        container.innerHTML = '<div class="no-data">暂无奖惩项数据</div>';
+        return;
+    }
+
+    // 筛选数据
+    let filteredRewards = rewards;
+    if (filter) {
+        filteredRewards = rewards.filter(reward => reward.type === filter);
+    }
+
+    // 按排序权重和类型排序
+    const sortedRewards = [...filteredRewards].sort((a, b) => {
+        if (a.type !== b.type) {
+            return a.type === 'reward' ? -1 : 1;
+        }
+        return (a.sortOrder || 0) - (b.sortOrder || 0);
+    });
+
+    container.innerHTML = sortedRewards.map(reward => `
+        <div class="reward-item-card ${reward.type}">
+            <div class="reward-info">
+                <div class="reward-name">${reward.name}</div>
+                <div class="reward-details">
+                    积分: ${reward.points > 0 ? '+' : ''}${reward.points}分 | 
+                    类型: ${reward.type === 'reward' ? '奖励' : '惩罚'} | 
+                    排序: ${reward.sortOrder || 0}
+                </div>
+            </div>
+            <div class="reward-actions">
+                <button class="edit-btn" onclick="editReward('${reward.id}')">编辑</button>
+                <button class="delete-btn" onclick="deleteReward('${reward.id}')">删除</button>
+                <button class="toggle-btn" onclick="toggleReward('${reward.id}', ${!reward.isActive})">
+                    ${reward.isActive ? '禁用' : '启用'}
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// 筛选奖惩项
+function filterRewards() {
+    const filter = document.getElementById('rewardsFilter').value;
+    // 重新加载并筛选
+    loadRewards().then(() => {
+        if (filter) {
+            const container = document.getElementById('rewardsListContainer');
+            const rewards = Array.from(container.children);
+            rewards.forEach(reward => {
+                const isMatch = reward.classList.contains(filter);
+                reward.style.display = isMatch ? 'flex' : 'none';
+            });
+        }
+    });
+}
+
+// 保存奖惩项
+async function saveReward(event) {
+    event.preventDefault();
+
+    const rewardId = document.getElementById('rewardId').value;
+    const name = document.getElementById('rewardName').value.trim();
+    const points = parseInt(document.getElementById('rewardPoints').value);
+    const type = document.getElementById('rewardType').value;
+    const sortOrder = parseInt(document.getElementById('rewardSortOrder').value) || 0;
+
+    if (!name || !points || !type) {
+        showMessage('请填写完整的奖惩项信息', 'warning');
+        return;
+    }
+
+    // 验证积分和类型的一致性
+    if (type === 'reward' && points <= 0) {
+        showMessage('奖励类型的积分应该为正数', 'warning');
+        return;
+    }
+    if (type === 'penalty' && points >= 0) {
+        showMessage('惩罚类型的积分应该为负数', 'warning');
+        return;
+    }
+
+    try {
+        const isEdit = !!rewardId;
+        const endpoint = isEdit ? `/api/reward-penalty/${rewardId}` : '/api/reward-penalty';
+        const method = isEdit ? 'PUT' : 'POST';
+
+        await apiRequest(endpoint, {
+            method: method,
+            body: JSON.stringify({
+                name: name,
+                points: points,
+                type: type,
+                sortOrder: sortOrder,
+                isActive: true
+            })
+        });
+
+        // 刷新奖惩项列表
+        loadRewards();
+        resetRewardForm();
+
+        showMessage(`奖惩项${isEdit ? '更新' : '添加'}成功`, 'success');
+
+    } catch (error) {
+        console.error('保存奖惩项失败:', error);
+        showMessage('保存奖惩项失败，请重试', 'error');
+    }
+}
+
+// 编辑奖惩项
+async function editReward(rewardId) {
+    try {
+        const response = await apiRequest(`/api/reward-penalty/${rewardId}`);
+        const reward = response.data?.item || response.item;
+        
+        if (reward) {
+            document.getElementById('rewardId').value = reward.id;
+            document.getElementById('rewardName').value = reward.name;
+            document.getElementById('rewardPoints').value = reward.points;
+            document.getElementById('rewardType').value = reward.type;
+            document.getElementById('rewardSortOrder').value = reward.sortOrder || 0;
+
+            document.getElementById('saveRewardBtn').textContent = '更新奖惩项';
+        }
+    } catch (error) {
+        console.error('获取奖惩项信息失败:', error);
+        showMessage('获取奖惩项信息失败', 'error');
+    }
+}
+
+// 删除奖惩项
+async function deleteReward(rewardId) {
+    if (!confirm('确定要删除这个奖惩项吗？')) return;
+
+    try {
+        await apiRequest(`/api/reward-penalty/${rewardId}`, {
+            method: 'DELETE'
+        });
+
+        // 刷新奖惩项列表
+        loadRewards();
+
+        showMessage('奖惩项删除成功', 'success');
+
+    } catch (error) {
+        console.error('删除奖惩项失败:', error);
+        showMessage('删除奖惩项失败，请重试', 'error');
+    }
+}
+
+// 切换奖惩项状态
+async function toggleReward(rewardId, isActive) {
+    try {
+        await apiRequest(`/api/reward-penalty/${rewardId}`, {
+            method: 'PUT',
+            body: JSON.stringify({
+                isActive: isActive
+            })
+        });
+
+        // 刷新奖惩项列表
+        loadRewards();
+
+        showMessage(`奖惩项${isActive ? '启用' : '禁用'}成功`, 'success');
+
+    } catch (error) {
+        console.error('切换奖惩项状态失败:', error);
+        showMessage('操作失败，请重试', 'error');
+    }
+}
+
+// 重置奖惩项表单
+function resetRewardForm() {
+    document.getElementById('rewardForm').reset();
+    document.getElementById('rewardId').value = '';
+    document.getElementById('saveRewardBtn').textContent = '保存奖惩项';
 }

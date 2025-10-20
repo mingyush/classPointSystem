@@ -1,39 +1,60 @@
 /**
- * 班级积分管理系统 - 主服务器文件
+ * 班级积分管理系统  - 主服务器文件
  * 
  * 功能概述:
  * - 提供Web服务器和API接口
- * - 支持三种界面：大屏展示、教师管理、学生查询
+ * - 支持两种界面：教室大屏(/display)、班级管理后台(/admin)
  * - 实现实时数据推送和性能监控
  * - 提供完整的错误处理和日志记录
+ * - 单班级部署，简化架构
  * 
  * 技术栈:
  * - Express.js: Web框架
- * - JSON文件: 数据存储
+ * - SQLite/D1: 数据存储
  * - SSE: 实时数据推送
  * - 自定义中间件: 错误处理和性能监控
  * 
  * @author 班级积分管理系统开发团队
  * @version 1.0.0
- * @since 2025-09-09
+ * @since 2025-09-10
  */
 
 const express = require('express');
 const path = require('path');
-const DataInitializer = require('./utils/dataInitializer');
+const fs = require('fs');
 const { errorHandler, notFoundHandler, errorLogger, performanceMonitor } = require('./middleware/errorHandler');
+const { storageAdapterFactory } = require('./adapters/storageAdapterFactory');
+const DatabaseInitializer = require('./utils/databaseInitializer');
+
+// 加载配置
+let config;
+try {
+    const configPath = path.join(__dirname, 'config', 'config.json');
+    config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+} catch (error) {
+    console.warn('无法加载配置文件，使用默认配置:', error.message);
+    config = {
+        deployment: 'local',
+        database: { type: 'sqlite', path: './data/classroom_points.db' },
+        server: { port: 3000, host: '0.0.0.0' }
+    };
+}
+
+// 设置环境变量
+process.env.DB_TYPE = config.database.type;
+process.env.DB_PATH = config.database.path;
 
 // 创建Express应用实例
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || config.server.port;
 
-// ==================== 数据初始化 ====================
+// ==================== 数据库初始化 ====================
 /**
- * 初始化系统数据文件
- * 确保所有必要的JSON数据文件存在并包含默认数据
+ * 初始化数据库
+ * 根据配置选择SQLite或D1数据库适配器
  */
-const dataInitializer = new DataInitializer();
-dataInitializer.initializeAllData().catch(console.error);
+const dbInitializer = new DatabaseInitializer();
+dbInitializer.initializeDatabase().catch(console.error);
 
 // ==================== 中间件配置 ====================
 /**
@@ -88,6 +109,12 @@ app.use((req, res, next) => {
 // 静态文件服务
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ==================== API路由配置 ====================
+/**
+ * 单班级API路由
+ * 移除多班级隔离，简化为单班级部署
+ */
+
 // SSE服务初始化
 const sseService = require('./services/sseService');
 const { router: sseRouter, broadcastSSEMessage } = require('./api/sse');
@@ -95,35 +122,48 @@ const { router: sseRouter, broadcastSSEMessage } = require('./api/sse');
 // 设置SSE服务的广播函数
 sseService.setBroadcastFunction(broadcastSSEMessage);
 
-// API路由
+// 单班级API路由
 app.use('/api/auth', require('./api/auth'));
 app.use('/api/points', require('./api/points'));
 app.use('/api/students', require('./api/students'));
 app.use('/api/products', require('./api/products'));
 app.use('/api/orders', require('./api/orders'));
+app.use('/api/reward-penalty', require('./api/reward-penalty'));
 app.use('/api/config', require('./api/config'));
 app.use('/api/backup', require('./api/backup'));
+app.use('/api/display', require('./api/display'));
 app.use('/api/logs', require('./api/logs'));
 app.use('/api/sse', sseRouter);
+app.use('/api/system', require('./api/system'));
 
-// 主页路由
+// ==================== 前端路由配置 ====================
+/**
+ * 单班级前端路由
+ * 简化为两个主要入口：教室大屏和班级管理后台
+ */
+
+// 主页路由 - 显示首页
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// 大屏展示路由
+// 教室大屏路由
 app.get('/display', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'display', 'index.html'));
 });
 
-// 教师管理路由
-app.get('/teacher', (req, res) => {
+// 班级管理后台路由
+app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'teacher', 'index.html'));
 });
 
-// 学生查询路由
+// 兼容旧版路由
+app.get('/teacher', (req, res) => {
+    res.redirect('/admin');
+});
+
 app.get('/student', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'student', 'index.html'));
+    res.redirect('/display');
 });
 
 // 健康检查接口
@@ -179,11 +219,11 @@ app.use(errorHandler);
 
 // 启动服务器
 app.listen(PORT, () => {
-    console.log(`班级积分管理系统已启动`);
+    console.log(`班级积分管理系统  已启动`);
     console.log(`服务器运行在: http://localhost:${PORT}`);
-    console.log(`大屏展示: http://localhost:${PORT}/display`);
-    console.log(`教师管理: http://localhost:${PORT}/teacher`);
-    console.log(`学生查询: http://localhost:${PORT}/student`);
+    console.log(`教室大屏: http://localhost:${PORT}/display`);
+    console.log(`班级管理后台: http://localhost:${PORT}/admin`);
+    console.log(`数据库类型: ${process.env.DB_TYPE || 'sqlite'}`);
 });
 
 module.exports = app;

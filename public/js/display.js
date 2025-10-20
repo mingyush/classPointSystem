@@ -1,6 +1,10 @@
 // 大屏展示页面逻辑
 
 let currentMode = 'normal';
+let currentTeacher = null;
+let sessionStartTime = null;
+let autoSwitchTimer = null;
+let selectedStudent = null;
 let refreshInterval;
 let isLoading = false;
 let sseEnabled = false;
@@ -12,6 +16,7 @@ document.addEventListener('DOMContentLoaded', function() {
     setupDataCacheHandlers();
     setupEventListeners();
     startAutoRefresh();
+    startFooterClock();
     
     // 添加键盘快捷键支持
     document.addEventListener('keydown', handleKeyboardShortcuts);
@@ -21,8 +26,25 @@ document.addEventListener('DOMContentLoaded', function() {
 function setupEventListeners() {
     const modeToggle = document.getElementById('modeToggle');
     if (modeToggle) {
-        modeToggle.addEventListener('click', toggleDisplayMode);
+        modeToggle.addEventListener('click', handleModeToggle);
     }
+
+    // 学生查询输入框回车事件
+    const studentInput = document.getElementById('studentNumberInput');
+    if (studentInput) {
+        studentInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                queryStudent();
+            }
+        });
+    }
+
+    // 点击模态框外部关闭
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('modal')) {
+            closeAllModals();
+        }
+    });
 }
 
 // 设置SSE事件处理器
@@ -102,28 +124,29 @@ async function initDisplay() {
 // 加载系统模式
 async function loadSystemMode() {
     try {
-        const response = await apiRequest('/api/config/mode');
-        let serverMode = response.data?.mode || response.mode || 'normal';
+        const response = await apiRequest('/api/system/state');
+        const data = response.data || response;
         
-        // 如果服务器返回上课模式，检查教师登录状态
-        if (serverMode === 'class') {
-            const isTeacherLoggedIn = await checkTeacherLoginStatus();
-            if (!isTeacherLoggedIn) {
-                // 教师未登录或登录过期，自动切换到平时模式
-                console.log('教师未登录或登录过期，自动切换到平时模式');
-                await switchToNormalMode();
-                serverMode = 'normal';
+        currentMode = data.mode || 'normal';
+        currentTeacher = data.currentTeacher || null;
+        
+        if (data.sessionStartTime) {
+            sessionStartTime = new Date(data.sessionStartTime);
+            if (currentMode === 'class') {
+                startAutoSwitchTimer();
             }
         }
         
-        currentMode = serverMode;
-        console.log('加载的系统模式:', currentMode);
+        console.log('加载的系统状态:', { currentMode, currentTeacher, sessionStartTime });
         updateModeDisplay();
         storage.set('systemMode', currentMode);
+        
     } catch (error) {
-        console.error('获取系统模式失败:', error);
+        console.error('获取系统状态失败:', error);
         // 使用本地存储的模式或默认模式
         currentMode = storage.get('systemMode') || 'normal';
+        currentTeacher = null;
+        sessionStartTime = null;
         updateModeDisplay();
         showMessage('无法连接服务器，使用离线模式', 'warning');
     }
@@ -235,51 +258,78 @@ async function loadNormalModeContent(container) {
 async function loadClassModeContent(container) {
     try {
         // 显示加载状态
-        showLoadingState(container, '正在加载学生数据...');
+        showLoadingState(container, '正在加载学生数据和奖惩项...');
         
-        // 使用数据缓存服务获取学生数据
-        const response = await window.dataCacheService.getData(
-            'students_list',
-            () => apiRequest('/api/students'),
-            {
-                defaultTTL: 300000, // 5分钟缓存
-                maxRetries: 3,
-                enableOfflineMode: true
-            }
-        );
+        // 并行获取学生数据和奖惩项数据
+        const [studentsResponse, rewardPenaltyResponse] = await Promise.all([
+            window.dataCacheService.getData(
+                'students_list',
+                () => apiRequest('/api/students'),
+                {
+                    defaultTTL: 300000, // 5分钟缓存
+                    maxRetries: 3,
+                    enableOfflineMode: true
+                }
+            ),
+            window.dataCacheService.getData(
+                'reward_penalty_items',
+                () => apiRequest('/api/reward-penalty'),
+                {
+                    defaultTTL: 600000, // 10分钟缓存
+                    maxRetries: 3,
+                    enableOfflineMode: true
+                }
+            )
+        ]);
         
         // 检查是否使用了离线数据
-        const isOfflineData = window.dataCacheService.getErrorState('students_list') !== null;
+        const isOfflineData = window.dataCacheService.getErrorState('students_list') !== null ||
+                             window.dataCacheService.getErrorState('reward_penalty_items') !== null;
         
         container.innerHTML = `
             <div class="class-mode">
                 <div class="class-mode-header">
                     <h2>学生积分操作${isOfflineData ? ' (离线模式)' : ''}</h2>
                     <div class="operation-tips">
-                        <span>${isOfflineData ? '网络连接异常，显示缓存数据' : '提示: 点击按钮为学生加分或减分'}</span>
+                        <span>${isOfflineData ? '网络连接异常，显示缓存数据' : '提示: 先选择学生，再点击奖惩项按钮'}</span>
                         <button onclick="refreshClassMode()" class="refresh-btn">${isOfflineData ? '重试连接' : '刷新'}</button>
                     </div>
                 </div>
+                
+                <div class="operation-hint" id="operationHint">
+                    请先选择一个学生，然后点击相应的奖惩项按钮
+                </div>
+                
                 <div class="student-grid" id="studentGrid"></div>
+                
+                <div class="reward-penalty-section">
+                    <h3>常用奖惩项</h3>
+                    <div class="reward-penalty-grid" id="rewardPenaltyGrid"></div>
+                </div>
             </div>
         `;
         
-        const students = response.students || response.data?.students || [];
-        renderStudentGrid(students);
+        const students = studentsResponse.students || studentsResponse.data?.students || [];
+        const rewardPenaltyItems = rewardPenaltyResponse.items || rewardPenaltyResponse.data?.items || [];
         
-        // 启动自动刷新学生数据
-        window.dataCacheService.startAutoRefresh(
-            'students_list',
-            () => apiRequest('/api/students'),
-            {
-                refreshInterval: 60000, // 1分钟刷新一次
-                enableOfflineMode: true
-            }
-        );
+        renderStudentGrid(students);
+        renderRewardPenaltyGrid(rewardPenaltyItems);
+        
+        // 启动自动刷新
+        if (!sseEnabled || !window.sseClient.isConnectedToServer()) {
+            window.dataCacheService.startAutoRefresh(
+                'students_list',
+                () => apiRequest('/api/students'),
+                {
+                    refreshInterval: 60000, // 1分钟刷新一次
+                    enableOfflineMode: true
+                }
+            );
+        }
         
     } catch (error) {
-        console.error('加载学生数据失败:', error);
-        showErrorState(container, '加载学生数据失败', error.message);
+        console.error('加载上课模式数据失败:', error);
+        showErrorState(container, '加载上课模式数据失败', error.message);
     }
 }
 
@@ -288,7 +338,8 @@ function renderRanking(containerId, data) {
     const container = document.getElementById(containerId);
     if (!container) return;
     
-    if (!data || data.length === 0) {
+    // 增强数据验证
+    if (!data || !Array.isArray(data) || data.length === 0) {
         container.innerHTML = '<li class="no-data">暂无数据</li>';
         return;
     }
@@ -315,7 +366,7 @@ function renderRanking(containerId, data) {
             <li class="ranking-item ${isTop3 ? 'top-3' : ''}" data-student-id="${item.id || item.studentId}">
                 <div class="student-info">
                     <span class="rank-number">${rank}</span>
-                    <span class="student-name">${item.name || item.studentName}(${item.id || item.studentId})</span>
+                    <span class="student-name">${item.student.name }(${item.student.classStudentNumber || item.student.studentNumber})</span>
                     ${changeIndicator}
                 </div>
                 <span class="points ${points < 0 ? 'negative' : ''}">${points}分</span>
@@ -355,22 +406,10 @@ function renderStudentGrid(students) {
         const balanceClass = balance < 0 ? 'negative' : balance > 50 ? 'high' : '';
         
         return `
-            <div class="student-card" data-student-id="${student.id}">
+            <div class="student-card" data-student-id="${student.id}" onclick="selectStudent('${student.id}')">
                 <h3>${student.name}</h3>
                 <div class="student-id">${student.id}</div>
                 <div class="balance ${balanceClass}">${balance}分</div>
-                <div class="point-controls">
-                    <div class="control-group">
-                        <button onclick="adjustPoints('${student.id}', 1)" class="add-btn small">+1</button>
-                        <button onclick="adjustPoints('${student.id}', 5)" class="add-btn">+5</button>
-                        <button onclick="adjustPoints('${student.id}', 10)" class="add-btn">+10</button>
-                    </div>
-                    <div class="control-group">
-                        <button onclick="adjustPoints('${student.id}', -1)" class="subtract-btn small">-1</button>
-                        <button onclick="adjustPoints('${student.id}', -5)" class="subtract-btn">-5</button>
-                        <button onclick="adjustPoints('${student.id}', -10)" class="subtract-btn">-10</button>
-                    </div>
-                </div>
                 <div class="last-operation" id="lastOp_${student.id}"></div>
             </div>
         `;
@@ -383,6 +422,43 @@ function renderStudentGrid(students) {
             card.classList.add('slide-in');
         });
     }, 100);
+}
+
+// 渲染奖惩项网格
+function renderRewardPenaltyGrid(items) {
+    const container = document.getElementById('rewardPenaltyGrid');
+    if (!container) return;
+    
+    if (!items || items.length === 0) {
+        container.innerHTML = '<div class="no-data">暂无奖惩项数据</div>';
+        return;
+    }
+    
+    // 按排序字段和类型排序
+    const sortedItems = [...items]
+        .filter(item => item.isActive !== false)
+        .sort((a, b) => {
+            // 先按类型排序（奖励在前）
+            if (a.type !== b.type) {
+                return a.type === 'reward' ? -1 : 1;
+            }
+            // 再按排序字段排序
+            return (a.sortOrder || 0) - (b.sortOrder || 0);
+        });
+    
+    container.innerHTML = sortedItems.map(item => {
+        const typeClass = item.type === 'reward' ? 'reward' : 'penalty';
+        const pointsText = item.points > 0 ? `+${item.points}` : `${item.points}`;
+        
+        return `
+            <button class="reward-penalty-btn ${typeClass}" 
+                    onclick="applyRewardPenalty('${item.id}', ${item.points}, '${item.name}')"
+                    data-item-id="${item.id}">
+                <div class="btn-name">${item.name}</div>
+                <div class="btn-points">${pointsText}分</div>
+            </button>
+        `;
+    }).join('');
 }
 
 // 调整积分（上课模式专用）
@@ -491,66 +567,12 @@ async function refreshClassMode() {
     }
 }
 
-// 切换显示模式
+// 旧版本的切换显示模式函数（保留兼容性）
 async function toggleDisplayMode() {
-    const newMode = currentMode === 'class' ? 'normal' : 'class';
-    
-    try {
-        // 检查是否有教师权限
-        const token = storage.get('teacherToken');
-        if (!token) {
-            // 如果没有token，显示登录弹窗
-            if (typeof showTeacherLogin === 'function') {
-                showTeacherLogin();
-                return;
-            } else {
-                showMessage('需要教师权限才能切换模式', 'warning');
-                return;
-            }
-        }
-        
-        // 调用API切换模式
-        const response = await fetch('/api/config/mode', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ mode: newMode })
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok) {
-            currentMode = newMode;
-            updateModeDisplay();
-            await loadDisplayContent();
-            showMessage(`已切换到${newMode === 'class' ? '上课' : '平时'}模式`, 'success');
-        } else {
-            throw new Error(data.message || '模式切换失败');
-        }
-        
-    } catch (error) {
-        console.error('切换模式失败:', error);
-        showMessage('切换模式失败: ' + error.message, 'error');
-    }
+    await handleModeToggle();
 }
 
-// 更新模式显示
-function updateModeDisplay() {
-    const modeIndicator = document.getElementById('modeIndicator');
-    const modeToggle = document.getElementById('modeToggle');
-    
-    if (modeIndicator) {
-        modeIndicator.textContent = currentMode === 'class' ? '上课模式' : '平时模式';
-        modeIndicator.className = `mode-indicator ${currentMode}-mode`;
-    }
-    
-    if (modeToggle) {
-        modeToggle.textContent = currentMode === 'class' ? '切换到平时模式' : '切换到上课模式';
-        modeToggle.className = `mode-toggle-btn ${currentMode}-mode`;
-    }
-}
+// 旧版本的更新模式显示函数已被新版本替换
 
 // 开始自动刷新
 function startAutoRefresh() {
@@ -953,5 +975,1053 @@ window.addEventListener('beforeunload', function() {
     stopAutoRefresh();
     if (window.dataCacheService) {
         window.dataCacheService.cleanup();
+    }
+});
+
+// 处理模式切换按钮点击
+async function handleModeToggle() {
+    if (currentMode === 'normal') {
+        // 切换到上课模式，需要选择教师
+        showTeacherSelect();
+    } else {
+        // 切换到平时模式
+        await switchToNormalMode();
+    }
+}
+
+// 显示教师选择弹窗
+async function showTeacherSelect() {
+    try {
+        const response = await apiRequest('/api/display/teachers');
+        const teachers = response.data || response.teachers || [];
+        
+        const teacherList = document.getElementById('teacherList');
+        if (teachers.length === 0) {
+            teacherList.innerHTML = '<div class="no-data">暂无教师数据</div>';
+        } else {
+            teacherList.innerHTML = teachers.map(teacher => `
+                <div class="teacher-item" onclick="selectTeacher('${teacher.id}', '${teacher.name}')">
+                    <h4>${teacher.name}</h4>
+                    <div class="teacher-role">${teacher.role === 'admin' ? '班主任' : '任课教师'}</div>
+                </div>
+            `).join('');
+        }
+        
+        document.getElementById('teacherSelectModal').style.display = 'flex';
+    } catch (error) {
+        console.error('获取教师列表失败:', error);
+        showMessage('获取教师列表失败: ' + error.message, 'error');
+    }
+}
+
+// 选择教师并切换到上课模式
+async function selectTeacher(teacherId, teacherName) {
+    try {
+        closeTeacherSelect();
+        
+        const response = await apiRequest('/api/system/switch-mode', {
+            method: 'POST',
+            body: JSON.stringify({
+                mode: 'class',
+                teacherId: teacherId
+            })
+        });
+        
+        if (response.success) {
+            currentMode = 'class';
+            currentTeacher = teacherName;
+            sessionStartTime = new Date();
+            
+            updateModeDisplay();
+            await loadDisplayContent();
+            startAutoSwitchTimer();
+            
+            showMessage(`已切换到上课模式，当前教师：${teacherName}`, 'success');
+        } else {
+            throw new Error(response.message || '切换模式失败');
+        }
+    } catch (error) {
+        console.error('切换到上课模式失败:', error);
+        showMessage('切换到上课模式失败: ' + error.message, 'error');
+    }
+}
+
+// 切换到平时模式
+async function switchToNormalMode() {
+    try {
+        const response = await apiRequest('/api/system/switch-mode', {
+            method: 'POST',
+            body: JSON.stringify({
+                mode: 'normal'
+            })
+        });
+        
+        if (response.success) {
+            currentMode = 'normal';
+            currentTeacher = null;
+            sessionStartTime = null;
+            selectedStudent = null;
+            
+            clearAutoSwitchTimer();
+            updateModeDisplay();
+            await loadDisplayContent();
+            
+            showMessage('已切换到平时模式', 'success');
+        } else {
+            throw new Error(response.message || '切换模式失败');
+        }
+    } catch (error) {
+        console.error('切换到平时模式失败:', error);
+        showMessage('切换到平时模式失败: ' + error.message, 'error');
+    }
+}
+
+// 启动自动切换定时器（2小时后自动切换到平时模式）
+function startAutoSwitchTimer() {
+    clearAutoSwitchTimer();
+    
+    autoSwitchTimer = setTimeout(async () => {
+        console.log('上课模式超时，自动切换到平时模式');
+        await switchToNormalMode();
+        showMessage('上课模式已超时，自动切换到平时模式', 'info');
+    }, 2 * 60 * 60 * 1000); // 2小时
+}
+
+// 清除自动切换定时器
+function clearAutoSwitchTimer() {
+    if (autoSwitchTimer) {
+        clearTimeout(autoSwitchTimer);
+        autoSwitchTimer = null;
+    }
+}
+
+// 显示学生查询弹窗
+function showStudentQuery() {
+    if (currentMode === 'class') {
+        showMessage('上课模式下不可使用学生查询功能', 'warning');
+        return;
+    }
+    
+    const modal = document.getElementById('studentQueryModal');
+    modal.style.display = 'flex';
+    
+    // 重置表单
+    document.getElementById('studentNumberInput').value = '';
+    document.getElementById('studentLoginForm').style.display = 'block';
+    document.getElementById('studentDashboard').style.display = 'none';
+    
+    // 自动聚焦到输入框
+    setTimeout(() => {
+        document.getElementById('studentNumberInput').focus();
+    }, 100);
+}
+
+// 查询学生积分信息
+async function queryStudent() {
+    const studentNumber = document.getElementById('studentNumberInput').value.trim();
+    const resultContainer = document.getElementById('queryResult');
+    
+    if (!studentNumber) {
+        resultContainer.innerHTML = '<div class="error-message">请输入学号</div>';
+        return;
+    }
+    
+    try {
+        resultContainer.innerHTML = '<div class="loading">正在查询...</div>';
+        
+        const response = await apiRequest(`/api/points/student/${encodeURIComponent(studentNumber)}`);
+        const data = response.data || response;
+        
+        if (!data.student) {
+            resultContainer.innerHTML = '<div class="error-message">未找到该学号的学生</div>';
+            return;
+        }
+        
+        const student = data.student;
+        const records = data.weeklyRecords || [];
+        const ranking = data.ranking || 0;
+        
+        resultContainer.innerHTML = `
+            <div class="student-info-card">
+                <h4>${student.name} (${student.id})</h4>
+                <div class="balance ${student.balance < 0 ? 'negative' : ''}">${student.balance}分</div>
+                <div class="ranking">班级排名：第 ${ranking} 名</div>
+                
+                <div class="recent-records">
+                    <h5>本周积分记录</h5>
+                    ${records.length === 0 ? 
+                        '<div class="no-data">本周暂无积分记录</div>' :
+                        records.map(record => `
+                            <div class="record-item">
+                                <span class="record-reason">${record.reason}</span>
+                                <span class="record-points ${record.amount > 0 ? 'positive' : 'negative'}">
+                                    ${record.amount > 0 ? '+' : ''}${record.amount}分
+                                </span>
+                                <span class="record-time">${formatDateTime(record.createdAt)}</span>
+                            </div>
+                        `).join('')
+                    }
+                </div>
+            </div>
+        `;
+        
+    } catch (error) {
+        console.error('查询学生信息失败:', error);
+        resultContainer.innerHTML = '<div class="error-message">查询失败，请重试</div>';
+    }
+}
+
+// 选择学生（上课模式）
+function selectStudent(studentId) {
+    // 清除之前的选择
+    document.querySelectorAll('.student-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    
+    // 选择当前学生
+    const studentCard = document.querySelector(`[data-student-id="${studentId}"]`);
+    if (studentCard) {
+        studentCard.classList.add('selected');
+        selectedStudent = studentId;
+        
+        // 更新操作提示
+        const hint = document.getElementById('operationHint');
+        if (hint) {
+            const studentName = studentCard.querySelector('h3').textContent;
+            hint.innerHTML = `已选择学生：${studentName}，请点击奖惩项按钮进行操作`;
+            hint.style.background = 'rgba(78, 205, 196, 0.2)';
+            hint.style.borderColor = 'rgba(78, 205, 196, 0.4)';
+            hint.style.color = '#4ecdc4';
+        }
+    }
+}
+
+// 应用奖惩项
+async function applyRewardPenalty(itemId, points, itemName) {
+    if (!selectedStudent) {
+        showMessage('请先选择一个学生', 'warning');
+        return;
+    }
+    
+    try {
+        // 禁用所有奖惩项按钮
+        document.querySelectorAll('.reward-penalty-btn').forEach(btn => {
+            btn.disabled = true;
+        });
+        
+        const response = await apiRequest('/api/points/reward-penalty', {
+            method: 'POST',
+            body: JSON.stringify({
+                studentId: selectedStudent,
+                itemId: itemId,
+                teacherId: currentTeacher,
+                points: points,
+                reason: itemName
+            })
+        });
+        
+        if (response.success) {
+            // 更新学生积分显示
+            const newBalance = response.data?.newBalance || response.newBalance;
+            if (newBalance !== undefined) {
+                updateStudentBalance(selectedStudent, newBalance);
+            }
+            
+            // 显示操作记录
+            const lastOpEl = document.getElementById(`lastOp_${selectedStudent}`);
+            if (lastOpEl) {
+                lastOpEl.innerHTML = `
+                    <span class="${points > 0 ? 'add' : 'subtract'}">
+                        ${itemName}: ${points > 0 ? '+' : ''}${points}分
+                    </span>
+                `;
+                setTimeout(() => {
+                    lastOpEl.innerHTML = '';
+                }, 5000);
+            }
+            
+            showMessage(`${itemName} 操作成功`, 'success');
+            
+            // 清除学生选择
+            setTimeout(() => {
+                clearStudentSelection();
+            }, 2000);
+            
+        } else {
+            throw new Error(response.message || '操作失败');
+        }
+        
+    } catch (error) {
+        console.error('奖惩项操作失败:', error);
+        showMessage('操作失败: ' + error.message, 'error');
+    } finally {
+        // 重新启用奖惩项按钮
+        setTimeout(() => {
+            document.querySelectorAll('.reward-penalty-btn').forEach(btn => {
+                btn.disabled = false;
+            });
+        }, 1000);
+    }
+}
+
+// 清除学生选择
+function clearStudentSelection() {
+    document.querySelectorAll('.student-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    selectedStudent = null;
+    
+    const hint = document.getElementById('operationHint');
+    if (hint) {
+        hint.innerHTML = '请先选择一个学生，然后点击相应的奖惩项按钮';
+        hint.style.background = 'rgba(255, 193, 7, 0.2)';
+        hint.style.borderColor = 'rgba(255, 193, 7, 0.4)';
+        hint.style.color = '#ffd700';
+    }
+}
+
+// 关闭学生查询弹窗
+function closeStudentQuery() {
+    document.getElementById('studentQueryModal').style.display = 'none';
+}
+
+// 关闭教师选择弹窗
+function closeTeacherSelect() {
+    document.getElementById('teacherSelectModal').style.display = 'none';
+}
+
+// 关闭所有弹窗
+function closeAllModals() {
+    closeStudentQuery();
+    closeTeacherSelect();
+}
+
+// 启动底部时钟
+function startFooterClock() {
+    function updateClock() {
+        const now = new Date();
+        const timeString = now.toLocaleString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        
+        const footerTime = document.getElementById('footerTime');
+        if (footerTime) {
+            footerTime.textContent = timeString;
+        }
+        
+        // 更新会话时间显示
+        if (currentMode === 'class' && sessionStartTime) {
+            const sessionDuration = Math.floor((now - sessionStartTime) / 1000 / 60); // 分钟
+            const sessionTimeEl = document.getElementById('sessionTime');
+            if (sessionTimeEl) {
+                sessionTimeEl.textContent = `上课时长: ${sessionDuration}分钟`;
+            }
+        }
+    }
+    
+    updateClock();
+    setInterval(updateClock, 1000);
+}
+
+// 更新模式显示
+function updateModeDisplay() {
+    const modeIndicator = document.getElementById('modeIndicator');
+    const modeToggle = document.getElementById('modeToggle');
+    const headerTitle = document.getElementById('headerTitle');
+    const sessionInfo = document.getElementById('sessionInfo');
+    const currentTeacherEl = document.getElementById('currentTeacher');
+    const displayFooter = document.getElementById('displayFooter');
+    const container = document.querySelector('.display-container');
+    
+    if (currentMode === 'class') {
+        // 上课模式
+        if (modeIndicator) {
+            modeIndicator.textContent = '上课模式';
+            modeIndicator.className = 'mode-indicator class-mode';
+        }
+        
+        if (modeToggle) {
+            modeToggle.textContent = '切换到平时模式';
+            modeToggle.className = 'mode-toggle-btn class-mode';
+        }
+        
+        if (headerTitle) {
+            headerTitle.textContent = '学生积分操作';
+        }
+        
+        if (sessionInfo && currentTeacher) {
+            sessionInfo.style.display = 'flex';
+            if (currentTeacherEl) {
+                currentTeacherEl.textContent = `当前教师: ${currentTeacher}`;
+            }
+        }
+        
+        if (displayFooter) {
+            displayFooter.style.display = 'none';
+        }
+        
+        if (container) {
+            container.classList.add('class-mode');
+            container.classList.remove('normal-mode');
+        }
+        
+    } else {
+        // 平时模式
+        if (modeIndicator) {
+            modeIndicator.textContent = '平时模式';
+            modeIndicator.className = 'mode-indicator normal-mode';
+        }
+        
+        if (modeToggle) {
+            modeToggle.textContent = '切换到上课模式';
+            modeToggle.className = 'mode-toggle-btn normal-mode';
+        }
+        
+        if (headerTitle) {
+            headerTitle.textContent = '班级积分排行榜';
+        }
+        
+        if (sessionInfo) {
+            sessionInfo.style.display = 'none';
+        }
+        
+        if (displayFooter) {
+            displayFooter.style.display = 'block';
+        }
+        
+        if (container) {
+            container.classList.add('normal-mode');
+            container.classList.remove('class-mode');
+        }
+    }
+}
+
+// 格式化日期时间
+function formatDateTime(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleString('zh-CN', {
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+// 页面卸载时清理定时器
+window.addEventListener('beforeunload', function() {
+    clearAutoSwitchTimer();
+    stopAutoRefresh();
+    if (window.dataCacheService) {
+        window.dataCacheService.cleanup();
+    }
+});
+// ==================== 学生查询功能 ====================
+
+let currentQueryStudent = null;
+let studentHistory = [];
+let studentProducts = [];
+let studentOrders = [];
+
+
+
+// 关闭学生查询弹窗
+function closeStudentQuery() {
+    const modal = document.getElementById('studentQueryModal');
+    modal.style.display = 'none';
+    
+    // 清理数据
+    currentQueryStudent = null;
+    studentHistory = [];
+    studentProducts = [];
+    studentOrders = [];
+}
+
+// 查询学生信息
+async function queryStudent() {
+    const input = document.getElementById('studentNumberInput');
+    const button = document.querySelector('.query-btn');
+    const studentId = input.value.trim();
+
+    if (!studentId) {
+        showMessage('请输入学号', 'warning');
+        input.focus();
+        return;
+    }
+
+    // 禁用按钮防止重复点击
+    button.disabled = true;
+    button.textContent = '查询中...';
+
+    try {
+        // 学生登录验证
+        const response = await apiRequest('/api/auth/student-login', {
+            method: 'POST',
+            body: JSON.stringify({ studentId: studentId })
+        });
+
+        if (response.success && response.data && response.data.student) {
+            currentQueryStudent = response.data.student;
+            
+            // 保存学生token（临时）
+            if (response.data.token) {
+                storage.set('tempStudentToken', response.data.token);
+            }
+            
+            showMessage('登录成功', 'success');
+            await loadStudentDashboard();
+        } else {
+            throw new Error('学号不存在或登录失败');
+        }
+
+    } catch (error) {
+        console.error('学生查询失败:', error);
+        showMessage(error.message || '查询失败，请检查学号是否正确', 'error');
+
+        // 重新启用按钮
+        button.disabled = false;
+        button.textContent = '查询';
+        input.focus();
+        input.select();
+    }
+}
+
+// 加载学生仪表板
+async function loadStudentDashboard() {
+    try {
+        // 显示仪表板，隐藏登录表单
+        document.getElementById('studentLoginForm').style.display = 'none';
+        document.getElementById('studentDashboard').style.display = 'block';
+        
+        // 更新学生信息显示
+        document.getElementById('studentName').textContent = currentQueryStudent.name;
+        document.getElementById('studentNumber').textContent = `学号：${currentQueryStudent.id}`;
+        
+        // 并行加载所有数据
+        await Promise.allSettled([
+            loadStudentInfo(),
+            loadStudentHistory(),
+            loadStudentProducts(),
+            loadStudentOrders()
+        ]);
+
+        // 渲染默认标签页（概览）
+        renderStudentOverview();
+
+    } catch (error) {
+        console.error('加载学生数据失败:', error);
+        showMessage('加载数据失败，请重试', 'error');
+    }
+}
+
+// 加载学生信息
+async function loadStudentInfo() {
+    try {
+        const response = await apiRequest(`/api/students/${currentQueryStudent.id}`);
+        if (response.data) {
+            // 更新当前学生信息
+            currentQueryStudent = { ...currentQueryStudent, ...response.data };
+        }
+    } catch (error) {
+        console.error('加载学生信息失败:', error);
+    }
+}
+
+// 加载学生历史记录
+async function loadStudentHistory() {
+    try {
+        const response = await apiRequest(`/api/points/history/${currentQueryStudent.id}`);
+        studentHistory = response.data?.records || response.records || [];
+    } catch (error) {
+        console.error('加载历史记录失败:', error);
+        studentHistory = [];
+    }
+}
+
+// 加载商品列表
+async function loadStudentProducts() {
+    try {
+        const response = await apiRequest('/api/products?active=true');
+        if (response.success && response.data && response.data.products) {
+            studentProducts = response.data.products;
+        } else {
+            studentProducts = [];
+        }
+    } catch (error) {
+        console.error('加载商品失败:', error);
+        studentProducts = [];
+    }
+}
+
+// 加载学生预约
+async function loadStudentOrders() {
+    try {
+        const response = await apiRequest(`/api/orders?studentId=${currentQueryStudent.id}`);
+        studentOrders = response.data?.orders || response.orders || [];
+    } catch (error) {
+        console.error('加载预约记录失败:', error);
+        studentOrders = [];
+    }
+}
+
+// 切换学生标签页
+function switchStudentTab(tabName, buttonElement) {
+    // 更新按钮状态
+    document.querySelectorAll('#studentQueryModal .tab-button').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    if (buttonElement) {
+        buttonElement.classList.add('active');
+    }
+
+    // 更新内容显示
+    document.querySelectorAll('#studentQueryModal .dashboard-content').forEach(content => {
+        content.classList.remove('active');
+    });
+    
+    const targetTab = document.getElementById(`student${tabName.charAt(0).toUpperCase() + tabName.slice(1)}Tab`);
+    if (targetTab) {
+        targetTab.classList.add('active');
+    }
+    
+    // 根据标签页渲染内容
+    switch (tabName) {
+        case 'overview':
+            renderStudentOverview();
+            break;
+        case 'history':
+            renderStudentHistory();
+            break;
+        case 'products':
+            renderStudentProducts();
+            break;
+        case 'orders':
+            renderStudentOrders();
+            break;
+    }
+}
+
+// 渲染学生概览
+function renderStudentOverview() {
+    const container = document.getElementById('studentOverviewTab');
+    const balance = currentQueryStudent.balance || 0;
+    const recentHistory = studentHistory.slice(0, 5);
+
+    container.innerHTML = `
+        <div class="overview-grid">
+            <div class="info-card balance-card">
+                <h3>当前积分</h3>
+                <div class="balance-display">
+                    <div class="balance-amount ${balance < 0 ? 'negative' : ''}">${balance}</div>
+                    <div class="balance-label">积分</div>
+                </div>
+                <div class="balance-status">
+                    ${balance >= 0 ? '积分充足' : '积分不足'}
+                </div>
+            </div>
+            
+            <div class="info-card stats-card">
+                <h3>统计信息</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value">${studentHistory.filter(r => r.amount > 0).length}</div>
+                        <div class="stat-label">获得加分次数</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">${studentHistory.filter(r => r.amount < 0).length}</div>
+                        <div class="stat-label">被减分次数</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">${studentOrders.length}</div>
+                        <div class="stat-label">预约次数</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">${studentOrders.filter(o => o.status === 'completed').length}</div>
+                        <div class="stat-label">成功兑换</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="info-card recent-card">
+                <h3>最近记录</h3>
+                <div class="recent-history">
+                    ${recentHistory.length > 0 ?
+                        recentHistory.map(record => `
+                            <div class="recent-item">
+                                <span class="recent-reason">${record.reason}</span>
+                                <span class="recent-points ${record.amount > 0 ? 'positive' : 'negative'}">
+                                    ${record.amount > 0 ? '+' : ''}${record.amount}分
+                                </span>
+                            </div>
+                        `).join('') :
+                        '<div class="no-data">暂无记录</div>'
+                    }
+                </div>
+                ${recentHistory.length > 0 ? '<button onclick="switchStudentTab(\'history\')" class="view-all-btn">查看全部</button>' : ''}
+            </div>
+        </div>
+    `;
+}
+
+// 渲染学生历史记录
+function renderStudentHistory() {
+    const container = document.getElementById('studentHistoryTab');
+    
+    container.innerHTML = `
+        <div class="history-section">
+            <div class="history-header">
+                <h3>积分变动记录</h3>
+                <div class="history-filter">
+                    <select id="studentHistoryFilter" onchange="filterStudentHistory()">
+                        <option value="">全部记录</option>
+                        <option value="positive">加分记录</option>
+                        <option value="negative">减分记录</option>
+                        <option value="purchase">消费记录</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="history-list" id="studentHistoryList">
+                ${renderStudentHistoryList(studentHistory)}
+            </div>
+        </div>
+    `;
+}
+
+// 渲染学生历史记录列表
+function renderStudentHistoryList(history) {
+    if (!history || history.length === 0) {
+        return '<div class="no-data">暂无积分记录</div>';
+    }
+
+    return history.map(record => {
+        const isPositive = record.amount > 0;
+        const typeClass = record.type || (isPositive ? 'reward' : 'penalty');
+
+        return `
+            <div class="history-item ${isPositive ? 'positive' : 'negative'}">
+                <div class="history-info">
+                    <div class="history-reason">${record.reason}</div>
+                    <div class="history-time">${formatDate(record.created_at)}</div>
+                    <div class="history-type">${getStudentTypeText(typeClass)}</div>
+                </div>
+                <div class="history-points ${isPositive ? 'positive' : 'negative'}">
+                    ${isPositive ? '+' : ''}${record.amount}分
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// 渲染学生商品页面
+function renderStudentProducts() {
+    const container = document.getElementById('studentProductsTab');
+    
+    container.innerHTML = `
+        <div class="products-section">
+            <div class="products-header">
+                <h3>商品兑换</h3>
+                <div class="products-info">
+                    <span>当前积分：<strong>${currentQueryStudent.balance || 0}分</strong></span>
+                </div>
+            </div>
+            
+            <div class="products-grid" id="studentProductsGrid">
+                ${renderStudentProductsGrid(studentProducts)}
+            </div>
+        </div>
+    `;
+}
+
+// 渲染学生商品网格
+function renderStudentProductsGrid(productList) {
+    if (!productList || productList.length === 0) {
+        return '<div class="no-data">暂无可兑换商品</div>';
+    }
+
+    return productList.map(product => {
+        const canAfford = (currentQueryStudent.balance || 0) >= product.price;
+        const inStock = product.stock > 0;
+        const canReserve = canAfford && inStock;
+
+        return `
+            <div class="product-card">
+                <div class="product-name">${product.name}</div>
+                <div class="product-price">${product.price}分</div>
+                <div class="product-stock ${inStock ? '' : 'out-of-stock'}">
+                    ${inStock ? `库存：${product.stock}个` : '暂时缺货'}
+                </div>
+                ${product.description ? `<div class="product-description">${product.description}</div>` : ''}
+                <button class="reserve-btn" 
+                        onclick="reserveStudentProduct('${product.id}')" 
+                        ${!canReserve ? 'disabled' : ''}>
+                    ${!canAfford ? '积分不足' : !inStock ? '暂时缺货' : '立即预约'}
+                </button>
+            </div>
+        `;
+    }).join('');
+}
+
+// 渲染学生预约页面
+function renderStudentOrders() {
+    const container = document.getElementById('studentOrdersTab');
+    
+    container.innerHTML = `
+        <div class="orders-section">
+            <div class="orders-header">
+                <h3>我的预约</h3>
+                <div class="orders-filter">
+                    <select id="studentOrdersFilter" onchange="filterStudentOrders()">
+                        <option value="">全部预约</option>
+                        <option value="pending">待确认</option>
+                        <option value="confirmed">已确认</option>
+                        <option value="completed">已完成</option>
+                        <option value="cancelled">已取消</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="orders-list" id="studentOrdersList">
+                ${renderStudentOrdersList(studentOrders)}
+            </div>
+        </div>
+    `;
+}
+
+// 渲染学生预约列表
+function renderStudentOrdersList(orderList) {
+    if (!orderList || orderList.length === 0) {
+        return '<div class="no-data">暂无预约记录</div>';
+    }
+
+    return orderList.map(order => {
+        const product = studentProducts.find(p => p.id === order.product_id);
+        const statusText = getStudentOrderStatusText(order.status);
+
+        return `
+            <div class="order-item">
+                <div class="order-info">
+                    <div class="order-product">${product?.name || order.product_name || '未知商品'}</div>
+                    <div class="order-price">${order.total_price || product?.price || 0}分</div>
+                    <div class="order-time">预约时间：${formatDate(order.created_at)}</div>
+                    ${order.confirmed_at ? `<div class="order-confirmed">确认时间：${formatDate(order.confirmed_at)}</div>` : ''}
+                </div>
+                <div class="order-status">
+                    <span class="status-badge status-${order.status}">${statusText}</span>
+                    ${order.status === 'pending' ?
+                        `<button class="cancel-order-btn" onclick="cancelStudentOrder('${order.id}')">取消预约</button>` :
+                        ''
+                    }
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// 预约商品
+async function reserveStudentProduct(productId) {
+    const product = studentProducts.find(p => p.id === productId);
+    if (!product) {
+        showMessage('商品不存在', 'error');
+        return;
+    }
+
+    if ((currentQueryStudent.balance || 0) < product.price) {
+        showMessage('积分不足，无法预约', 'warning');
+        return;
+    }
+
+    if (product.stock <= 0) {
+        showMessage('商品暂时缺货', 'warning');
+        return;
+    }
+
+    const confirmed = confirm(`确定要预约 "${product.name}" 吗？\n需要积分：${product.price}分`);
+    if (!confirmed) return;
+
+    try {
+        const response = await apiRequest('/api/orders', {
+            method: 'POST',
+            body: JSON.stringify({
+                studentId: currentQueryStudent.id,
+                productId: productId,
+                quantity: 1
+            })
+        });
+
+        if (response.success) {
+            showMessage('预约成功！请联系老师确认兑换', 'success');
+
+            // 重新加载预约数据
+            await loadStudentOrders();
+            
+            // 如果当前在预约标签页，刷新显示
+            if (document.getElementById('studentOrdersTab').classList.contains('active')) {
+                renderStudentOrders();
+            }
+        }
+
+    } catch (error) {
+        console.error('预约失败:', error);
+        showMessage(error.message || '预约失败，请重试', 'error');
+    }
+}
+
+// 取消预约
+async function cancelStudentOrder(orderId) {
+    const confirmed = confirm('确定要取消这个预约吗？');
+    if (!confirmed) return;
+
+    try {
+        const response = await apiRequest(`/api/orders/${orderId}/cancel`, {
+            method: 'POST'
+        });
+
+        if (response.success) {
+            showMessage('预约已取消', 'success');
+
+            // 重新加载预约数据
+            await loadStudentOrders();
+            
+            // 刷新显示
+            if (document.getElementById('studentOrdersTab').classList.contains('active')) {
+                renderStudentOrders();
+            }
+        }
+
+    } catch (error) {
+        console.error('取消预约失败:', error);
+        showMessage(error.message || '取消预约失败，请重试', 'error');
+    }
+}
+
+// 筛选学生历史记录
+function filterStudentHistory() {
+    const filter = document.getElementById('studentHistoryFilter').value;
+    let filteredHistory = studentHistory;
+
+    if (filter) {
+        filteredHistory = studentHistory.filter(record => {
+            switch (filter) {
+                case 'positive':
+                    return record.amount > 0;
+                case 'negative':
+                    return record.amount < 0;
+                case 'purchase':
+                    return record.type === 'purchase';
+                default:
+                    return true;
+            }
+        });
+    }
+
+    document.getElementById('studentHistoryList').innerHTML = renderStudentHistoryList(filteredHistory);
+}
+
+// 筛选学生预约记录
+function filterStudentOrders() {
+    const filter = document.getElementById('studentOrdersFilter').value;
+    let filteredOrders = studentOrders;
+
+    if (filter) {
+        filteredOrders = studentOrders.filter(order => order.status === filter);
+    }
+
+    document.getElementById('studentOrdersList').innerHTML = renderStudentOrdersList(filteredOrders);
+}
+
+// 刷新学生数据
+async function refreshStudentData() {
+    try {
+        showMessage('正在刷新数据...', 'info');
+        await loadStudentDashboard();
+        showMessage('数据刷新成功', 'success');
+    } catch (error) {
+        console.error('刷新数据失败:', error);
+        showMessage('刷新数据失败', 'error');
+    }
+}
+
+// 学生退出登录
+function logoutStudent() {
+    // 重置状态
+    currentQueryStudent = null;
+    studentHistory = [];
+    studentProducts = [];
+    studentOrders = [];
+    
+    // 清除临时token
+    storage.remove('tempStudentToken');
+    
+    // 显示登录表单，隐藏仪表板
+    document.getElementById('studentLoginForm').style.display = 'block';
+    document.getElementById('studentDashboard').style.display = 'none';
+    
+    // 重置输入框
+    const input = document.getElementById('studentNumberInput');
+    const button = document.querySelector('.query-btn');
+    if (input) {
+        input.value = '';
+        input.focus();
+    }
+    if (button) {
+        button.disabled = false;
+        button.textContent = '查询';
+    }
+}
+
+// 工具函数
+function getStudentTypeText(type) {
+    const typeMap = {
+        'reward': '奖励',
+        'penalty': '惩罚',
+        'purchase': '消费',
+        'manual': '手动调整'
+    };
+    return typeMap[type] || '其他';
+}
+
+function getStudentOrderStatusText(status) {
+    const statusMap = {
+        'pending': '待确认',
+        'confirmed': '已确认',
+        'completed': '已完成',
+        'cancelled': '已取消'
+    };
+    return statusMap[status] || status;
+}
+
+// 关闭所有弹窗
+function closeAllModals() {
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.style.display = 'none';
+    });
+    
+    // 清理学生查询状态
+    if (currentQueryStudent) {
+        logoutStudent();
+    }
+}
+
+// 增强键盘事件处理，支持学生查询弹窗
+document.addEventListener('keydown', function(event) {
+    // ESC键关闭弹窗
+    if (event.key === 'Escape') {
+        const modal = document.getElementById('studentQueryModal');
+        if (modal && modal.style.display === 'block') {
+            closeStudentQuery();
+            return;
+        }
+    }
+    
+    // 在学生查询输入框中按回车
+    if (event.key === 'Enter' && event.target.id === 'studentNumberInput') {
+        queryStudent();
+        return;
     }
 });
