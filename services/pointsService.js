@@ -265,7 +265,12 @@ class PointsService {
     async getWeeklyRanking(students) {
         const today = new Date();
         const dayOfWeek = today.getDay();
-        const startOfWeek = new Date(today.getTime() - dayOfWeek * 24 * 60 * 60 * 1000);
+        // 修正：周一作为一周的开始 (在中国习惯中)
+        // 如果今天是周日(dayOfWeek === 0)，则需要回退6天到周一
+        // 如果今天是周六(dayOfWeek === 6)，则需要回退5天到周一
+        // 一般情况下，需要回退 (dayOfWeek + 6) % 7 天
+        const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // 周一为0, 周二为1, ..., 周日为6
+        const startOfWeek = new Date(today.getTime() - daysToSubtract * 24 * 60 * 60 * 1000);
         startOfWeek.setHours(0, 0, 0, 0);
         const endOfWeek = new Date(startOfWeek.getTime() + 7 * 24 * 60 * 60 * 1000);
 

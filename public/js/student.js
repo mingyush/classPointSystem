@@ -86,6 +86,11 @@ async function handleLogin() {
             body: JSON.stringify({ studentId: studentId })
         });
 
+        // 检查response是否为undefined或null
+        if (!response) {
+            throw new Error('服务器未返回响应，请稍后重试');
+        }
+
         if (response.success && response.data && response.data.student) {
             currentStudent = response.data.student;
             storage.set('currentStudent', currentStudent);
@@ -96,12 +101,17 @@ async function handleLogin() {
             showMessage('登录成功', 'success');
             await loadStudentDashboard();
         } else {
-            throw new Error('学号不存在或登录失败');
+            throw new Error(response.message || '学号不存在或登录失败');
         }
 
     } catch (error) {
         console.error('登录失败:', error);
-        showMessage(error.message || '登录失败，请检查学号是否正确', 'error');
+        // 检查错误是否是TypeError，这可能是因为访问了undefined的属性
+        if (error instanceof TypeError && error.message.includes('reading \'success\'')) {
+            showMessage('服务器响应异常，请稍后重试', 'error');
+        } else {
+            showMessage(error.message || '登录失败，请检查学号是否正确', 'error');
+        }
 
         // 重新启用按钮
         loginBtn.disabled = false;

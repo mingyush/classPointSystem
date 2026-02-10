@@ -293,6 +293,90 @@ class DataAccess {
         }
     }
 
+    // ==================== 通用数据访问方法 ====================
+
+    /**
+     * 保存单个数据项
+     * @param {string} id - 数据ID
+     * @param {object} data - 要保存的数据
+     * @param {string} key - 数据在文件中的键名，默认为'data'
+     */
+    async save(id, data, key = 'data') {
+        const filename = `${key}.json`;
+        let fileData = await this.readFile(filename, {});
+        
+        // 如果文件为空或没有对应键，则初始化
+        if (!fileData[key]) {
+            fileData[key] = {};
+        }
+        
+        // 更新数据
+        fileData[key][id] = data;
+        
+        await this.writeFile(filename, fileData);
+    }
+
+    /**
+     * 加载单个数据项
+     * @param {string} id - 数据ID
+     * @param {string} key - 数据在文件中的键名，默认为'data'
+     * @returns {Promise<object|null>} 数据项或null
+     */
+    async load(id, key = 'data') {
+        const filename = `${key}.json`;
+        let fileData = await this.readFile(filename, {});
+        
+        if (!fileData[key] || typeof fileData[key] !== 'object') {
+            return null;
+        }
+        
+        return fileData[key][id] || null;
+    }
+
+    /**
+     * 删除单个数据项
+     * @param {string} id - 数据ID
+     * @param {string} key - 数据在文件中的键名，默认为'data'
+     * @returns {Promise<boolean>} 是否删除成功
+     */
+    async remove(id, key = 'data') {
+        const filename = `${key}.json`;
+        let fileData = await this.readFile(filename, {});
+        
+        if (!fileData[key] || typeof fileData[key] !== 'object') {
+            return false;
+        }
+        
+        if (!fileData[key].hasOwnProperty(id)) {
+            return false;
+        }
+        
+        delete fileData[key][id];
+        
+        await this.writeFile(filename, fileData);
+        return true;
+    }
+
+    /**
+     * 加载所有数据项
+     * @param {string} key - 数据在文件中的键名，默认为'data'
+     * @returns {Promise<Array>} 所有数据项的数组
+     */
+    async loadAll(key = 'data') {
+        const filename = `${key}.json`;
+        let fileData = await this.readFile(filename, {});
+        
+        if (!fileData[key] || typeof fileData[key] !== 'object') {
+            return [];
+        }
+        
+        // 将对象转换为数组，包含ID
+        return Object.entries(fileData[key]).map(([id, data]) => {
+            // 确保数据中包含ID
+            return { id, ...data };
+        });
+    }
+
     // ==================== 缓存和性能优化方法 ====================
 
     /**

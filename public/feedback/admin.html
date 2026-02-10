@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>反馈管理 - 班级积分管理系统</title>
+    <link rel="stylesheet" href="/css/common.css">
+    <link rel="stylesheet" href="/css/teacher.css">
+    <link rel="stylesheet" href="/css/menu.css">
+</head>
+<body>
+    <div class="teacher-container">
+        <header>
+            <div class="header-left">
+                <h1>反馈管理</h1>
+                <div class="user-info" id="userInfo">
+                    <span class="user-name">未登录</span>
+                </div>
+            </div>
+            <div class="header-controls">
+                <a href="/teacher" class="back-link">返回教师管理</a>
+                <a href="/" class="home-link">返回首页</a>
+                <button id="logoutBtn" class="logout-btn">退出登录</button>
+            </div>
+        </header>
+        
+        <main id="feedbackContent">
+            <div class="loading">正在加载反馈数据...</div>
+        </main>
+    </div>
+    
+    <script src="/js/common.js"></script>
+    <script src="/js/menu.js"></script>
+    <script src="/js/feedback.js"></script>
+    <script src="/js/feedback-admin.js"></script>
+    <script>
+        // 简单的身份验证检查
+        document.addEventListener('DOMContentLoaded', function() {
+            // 检查是否有教师身份的token
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                window.location.href = '/teacher';
+                return;
+            }
+            
+            // 验证token有效性
+            fetch('/api/auth/verify', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) {
+                    window.location.href = '/teacher';
+                }
+            })
+            .catch(err => {
+                console.error('验证失败:', err);
+                window.location.href = '/teacher';
+            });
+        });
+    </script>
+</body>
+</html>

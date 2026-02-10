@@ -55,10 +55,20 @@ router.get('/:id', authenticateToken,
             throw createError('STUDENT_NOT_FOUND', '学生不存在');
         }
         
+        // 计算学生积分余额
+        const balance = await pointsService.calculateStudentBalance(id);
+        
+        // 获取学生排名信息
+        const rankInfo = await pointsService.getStudentRankInfo(id);
+        
         res.json({
             success: true,
             message: '获取学生信息成功',
-            data: student.toJSON()
+            data: {
+                ...student.toJSON(),
+                balance: balance,
+                rank: rankInfo.totalRank || 0
+            }
         });
     })
 );

@@ -104,6 +104,7 @@ app.use('/api/orders', require('./api/orders'));
 app.use('/api/config', require('./api/config'));
 app.use('/api/backup', require('./api/backup'));
 app.use('/api/logs', require('./api/logs'));
+app.use('/api/feedback', require('./api/feedback'));
 app.use('/api/sse', sseRouter);
 
 // 主页路由

@@ -100,11 +100,15 @@ class SSEClient {
      */
     handleMessage(event) {
         try {
+            if (!event.data) {
+                console.warn('收到空的SSE消息');
+                return;
+            }
             const data = JSON.parse(event.data);
             console.log('收到SSE消息:', data);
             this.emit('message', data);
         } catch (error) {
-            console.error('解析SSE消息失败:', error);
+            console.error('解析SSE消息失败:', error, '原始数据:', event.data);
         }
     }
 
@@ -114,80 +118,116 @@ class SSEClient {
     setupCustomEventListeners() {
         if (!this.eventSource) return;
 
+        // 辅助函数：安全解析JSON数据
+        const safeParseData = (event, eventName) => {
+            try {
+                if (!event.data) {
+                    console.warn(`收到空的SSE ${eventName} 事件数据`);
+                    return null;
+                }
+                return JSON.parse(event.data);
+            } catch (error) {
+                console.error(`解析SSE ${eventName} 事件数据失败:`, error, '原始数据:', event.data);
+                return null;
+            }
+        };
+
         // 连接确认事件
         this.eventSource.addEventListener('connected', (event) => {
-            const data = JSON.parse(event.data);
-            console.log('SSE连接确认:', data);
-            this.emit('connected', data);
+            const data = safeParseData(event, 'connected');
+            if (data) {
+                console.log('SSE连接确认:', data);
+                this.emit('connected', data);
+            }
         });
 
         // 心跳事件
         this.eventSource.addEventListener('heartbeat', (event) => {
-            const data = JSON.parse(event.data);
-            this.emit('heartbeat', data);
+            const data = safeParseData(event, 'heartbeat');
+            if (data) {
+                this.emit('heartbeat', data);
+            }
         });
 
         // 积分更新事件
         this.eventSource.addEventListener('points_updated', (event) => {
-            const data = JSON.parse(event.data);
-            console.log('积分更新:', data);
-            this.emit('points_updated', data);
+            const data = safeParseData(event, 'points_updated');
+            if (data) {
+                console.log('积分更新:', data);
+                this.emit('points_updated', data);
+            }
         });
 
         // 排行榜更新事件
         this.eventSource.addEventListener('rankings_updated', (event) => {
-            const data = JSON.parse(event.data);
-            console.log('排行榜更新:', data);
-            this.emit('rankings_updated', data);
+            const data = safeParseData(event, 'rankings_updated');
+            if (data) {
+                console.log('排行榜更新:', data);
+                this.emit('rankings_updated', data);
+            }
         });
 
         // 模式变更事件
         this.eventSource.addEventListener('mode_changed', (event) => {
-            const data = JSON.parse(event.data);
-            console.log('模式变更:', data);
-            this.emit('mode_changed', data);
+            const data = safeParseData(event, 'mode_changed');
+            if (data) {
+                console.log('模式变更:', data);
+                this.emit('mode_changed', data);
+            }
         });
 
         // 商品更新事件
         this.eventSource.addEventListener('product_updated', (event) => {
-            const data = JSON.parse(event.data);
-            console.log('商品更新:', data);
-            this.emit('product_updated', data);
+            const data = safeParseData(event, 'product_updated');
+            if (data) {
+                console.log('商品更新:', data);
+                this.emit('product_updated', data);
+            }
         });
 
         // 订单更新事件
         this.eventSource.addEventListener('order_updated', (event) => {
-            const data = JSON.parse(event.data);
-            console.log('订单更新:', data);
-            this.emit('order_updated', data);
+            const data = safeParseData(event, 'order_updated');
+            if (data) {
+                console.log('订单更新:', data);
+                this.emit('order_updated', data);
+            }
         });
 
         // 配置更新事件
         this.eventSource.addEventListener('config_updated', (event) => {
-            const data = JSON.parse(event.data);
-            console.log('配置更新:', data);
-            this.emit('config_updated', data);
+            const data = safeParseData(event, 'config_updated');
+            if (data) {
+                console.log('配置更新:', data);
+                this.emit('config_updated', data);
+            }
         });
 
         // 数据重置事件
         this.eventSource.addEventListener('data_reset', (event) => {
-            const data = JSON.parse(event.data);
-            console.log('数据重置:', data);
-            this.emit('data_reset', data);
+            const data = safeParseData(event, 'data_reset');
+            if (data) {
+                console.log('数据重置:', data);
+                this.emit('data_reset', data);
+            }
         });
 
-        // 错误事件
-        this.eventSource.addEventListener('error', (event) => {
-            const data = JSON.parse(event.data);
-            console.error('服务器错误:', data);
-            this.emit('server_error', data);
+        // 服务器错误事件
+        this.eventSource.addEventListener('server_error', (event) => {
+            const data = safeParseData(event, 'server_error');
+            if (data) {
+                console.error('服务器错误:', data);
+                this.emit('server_error', data);
+            }
         });
 
         // 通知事件
         this.eventSource.addEventListener('notification', (event) => {
-            const data = JSON.parse(event.data);
-            console.log('通知:', data);
-            this.emit('notification', data);
+            const data = safeParseData(event, 'notification');
+            if (data) {
+                console.log('通知:', data);
+                this.emit('notification', data);
+            }
         });
     }
 
