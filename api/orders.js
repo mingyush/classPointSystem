@@ -13,7 +13,7 @@ const orderService = new OrderService();
  */
 router.post('/reserve', authenticateToken, async (req, res) => {
     try {
-        const { studentId, productId } = req.body;
+        const { studentId, productId, quantity = 1 } = req.body;
 
         // 参数验证
         if (!studentId || typeof studentId !== 'string') {
@@ -32,6 +32,16 @@ router.post('/reserve', authenticateToken, async (req, res) => {
             });
         }
 
+        // 验证数量参数
+        const quantityNum = parseInt(quantity);
+        if (isNaN(quantityNum) || quantityNum < 1) {
+            return res.status(400).json({
+                success: false,
+                message: '预约数量必须为正整数',
+                code: 'INVALID_QUANTITY'
+            });
+        }
+
         // 如果是学生登录，只能为自己预约
         if (req.user.userType === 'student' && req.user.userId !== studentId) {
             return res.status(403).json({
@@ -41,7 +51,7 @@ router.post('/reserve', authenticateToken, async (req, res) => {
             });
         }
 
-        const order = await orderService.createReservation(studentId, productId);
+        const order = await orderService.createReservation(studentId, productId, quantityNum);
 
         res.status(201).json({
             success: true,
@@ -81,7 +91,7 @@ router.post('/reserve', authenticateToken, async (req, res) => {
         if (error.message.includes('商品库存不足')) {
             return res.status(400).json({
                 success: false,
-                message: '商品库存不足',
+                message: error.message, // 返回详细的库存信息
                 code: 'INSUFFICIENT_STOCK'
             });
         }
@@ -91,6 +101,14 @@ router.post('/reserve', authenticateToken, async (req, res) => {
                 success: false,
                 message: '积分不足',
                 code: 'INSUFFICIENT_POINTS'
+            });
+        }
+
+        if (error.message.includes('预约数量必须为正整数')) {
+            return res.status(400).json({
+                success: false,
+                message: '预约数量必须为正整数',
+                code: 'INVALID_QUANTITY'
             });
         }
 

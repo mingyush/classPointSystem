@@ -12,6 +12,8 @@ class StudentInfo {
         this.name = data.name || '';
         this.class = data.class || '';
         this.balance = data.balance || 0;
+        // 确保isActive字段是布尔类型（处理从SQLite读取的数字类型）
+        this.isActive = data.isActive !== undefined ? Boolean(data.isActive) : true;
         this.createdAt = data.createdAt || new Date().toISOString();
     }
 
@@ -54,6 +56,7 @@ class StudentInfo {
             name: this.name,
             class: this.class,
             balance: this.balance,
+            isActive: this.isActive,
             createdAt: this.createdAt
         };
     }
@@ -139,7 +142,8 @@ class Product {
         this.stock = data.stock || 0;
         this.description = data.description || '';
         this.imageUrl = data.imageUrl || '';
-        this.isActive = data.isActive !== undefined ? data.isActive : true;
+        // 确保isActive字段是布尔类型（处理从SQLite读取的数字类型）
+        this.isActive = data.isActive !== undefined ? Boolean(data.isActive) : true;
         this.createdAt = data.createdAt || new Date().toISOString();
     }
 
@@ -206,6 +210,7 @@ class Order {
         this.id = data.id || this.generateId();
         this.studentId = data.studentId || '';
         this.productId = data.productId || '';
+        this.quantity = data.quantity || 1; // 预约数量，默认为1
         this.status = data.status || 'pending'; // 'pending', 'confirmed', 'cancelled'
         this.reservedAt = data.reservedAt || new Date().toISOString();
         this.confirmedAt = data.confirmedAt || null;
@@ -234,6 +239,10 @@ class Order {
 
         if (!this.productId || typeof this.productId !== 'string') {
             errors.push('商品ID不能为空且必须为字符串');
+        }
+
+        if (!Number.isInteger(this.quantity) || this.quantity < 1) {
+            errors.push('预约数量必须为正整数');
         }
 
         if (!validStatuses.includes(this.status)) {

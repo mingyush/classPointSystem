@@ -8,10 +8,10 @@ const { sqliteConnection } = require('./sqliteConnection');
  * 支持配置切换存储后端（JSON文件或SQLite数据库）
  */
 class DataAccess {
-    constructor(dataDir = 'data', useSQLite = false) {
+    constructor(dataDir = 'data', useSQLite = true) {
         this.dataDir = dataDir;
         this.backupDir = path.join(dataDir, 'backups');
-        this.useSQLite = useSQLite; // 是否使用SQLite
+        this.useSQLite = useSQLite !== undefined ? useSQLite : true; // 默认使用SQLite
         
         // 文件缓存机制（仅JSON模式使用）
         this.fileCache = new Map();
@@ -475,6 +475,9 @@ class DataAccess {
      */
     async _readFromSQLite(tableName, defaultData) {
         try {
+            // 确保SQLite连接
+            await this._ensureSQLiteConnection();
+            
             // 检查表是否存在
             const tableExists = await sqliteConnection.tableExists(tableName);
             if (!tableExists) {
@@ -527,6 +530,8 @@ class DataAccess {
         if (!data) return;
         
         try {
+            // 确保SQLite连接
+            await this._ensureSQLiteConnection();
             switch (tableName) {
                 case 'students':
                     await this._writeStudentsToSQLite(data);
@@ -562,18 +567,48 @@ class DataAccess {
     _convertSQLiteToJSON(tableName, rows) {
         switch (tableName) {
             case 'students':
+                // 学生数据需要包装成 { students: [] } 格式，并转换isActive字段为布尔值
+                return { 
+                    students: rows.map(row => ({
+                        ...row,
+                        balance: row.balance || 0,  // 直接使用balance字段
+                        isActive: Boolean(row.isActive)  // 将SQLite的整数转换为布尔值
+                    }))
+                };
             case 'teachers':
+                // 教师数据需要包装成 { teachers: [] } 格式，并转换isActive字段为布尔值
+                return { 
+                    teachers: rows.map(row => ({
+                        ...row,
+                        isActive: Boolean(row.isActive)  // 将SQLite的整数转换为布尔值
+                    }))
+                };
             case 'products':
-                // 数组格式
-                return rows;
+                // 商品数据需要包装成 { products: [] } 格式，并转换isActive字段为布尔值
+                return { 
+                    products: rows.map(row => ({
+                        ...row,
+                        isActive: Boolean(row.isActive)  // 将SQLite的整数转换为布尔值
+                    }))
+                };
             case 'points':
+                // 积分数据需要包装成 { records: [] } 格式，保持时间戳
+                return { 
+                    records: rows.map(row => ({
+                        ...row,
+                        created_at: row.created_at,
+                        updated_at: row.updated_at
+                    }))
+                };
             case 'orders':
-                // 数组格式，保持时间戳
-                return rows.map(row => ({
-                    ...row,
-                    created_at: row.created_at,
-                    updated_at: row.updated_at
-                }));
+                // 订单数据需要包装成 { orders: [] } 格式，保持时间戳
+                return { 
+                    orders: rows.map(row => ({
+                        ...row,
+                        created_at: row.created_at,
+                        updated_at: row.updated_at
+                    }))
+                };
             case 'system_config':
             case 'systemConfig':
                 // 配置格式，转换为对象
@@ -592,26 +627,38 @@ class DataAccess {
      * @private
      */
     async _writeStudentsToSQLite(data) {
-        if (!Array.isArray(data)) return;
+        // 处理直接传入的数组或包含在students键中的数据
+        const students = Array.isArray(data) ? data : (data.students || []);
+        if (!Array.isArray(students) || students.length === 0) return;
         
-        // 清空现有数据
-        await sqliteConnection.run('DELETE FROM students');
-        
-        // 插入新数据
+        // 使用 INSERT OR REPLACE 来处理重复记录
         const insertQuery = `
-            INSERT INTO students (id, name, class, studentId, totalPoints, currentPoints, avatar, createdAt, updatedAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            INSERT OR REPLACE INTO students (id, name, class, studentId, totalPoints, balance, isActive, avatar, createdAt, updatedAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
         `;
         
-        for (const student of data) {
+        for (const student of students) {
+            // 获取现有记录的createdAt，如果不存在则使用当前时间
+            let createdAt = student.createdAt;
+            if (!createdAt) {
+                try {
+                    const existing = await sqliteConnection.get('SELECT createdAt FROM students WHERE id = ?', [student.id]);
+                    createdAt = existing ? existing.createdAt : new Date().toISOString();
+                } catch (error) {
+                    createdAt = new Date().toISOString();
+                }
+            }
+            
             await sqliteConnection.run(insertQuery, [
                 student.id,
                 student.name,
                 student.class || '默认班级',
                 student.studentId || student.id,
                 student.totalPoints || 0,
-                student.currentPoints || 0,
-                student.avatar || null
+                student.balance || 0,  // 直接使用balance字段
+                student.hasOwnProperty('isActive') ? (student.isActive ? 1 : 0) : 1,  // 布尔值转换为整数
+                student.avatar || null,
+                createdAt
             ]);
         }
     }
@@ -621,7 +668,9 @@ class DataAccess {
      * @private
      */
     async _writeTeachersToSQLite(data) {
-        if (!Array.isArray(data)) return;
+        // 处理直接传入的数组或包含在teachers键中的数据
+        const teachers = Array.isArray(data) ? data : (data.teachers || []);
+        if (!Array.isArray(teachers) || teachers.length === 0) return;
         
         // 清空现有数据
         await sqliteConnection.run('DELETE FROM teachers');
@@ -632,14 +681,14 @@ class DataAccess {
             VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
         `;
         
-        for (const teacher of data) {
+        for (const teacher of teachers) {
             await sqliteConnection.run(insertQuery, [
                 teacher.id,
                 teacher.name,
-                teacher.password,
+                teacher.password || '123',
                 teacher.role || 'teacher',
                 teacher.department || null,
-                teacher.hasOwnProperty('isActive') ? teacher.isActive : 1
+                teacher.hasOwnProperty('isActive') ? (teacher.isActive ? 1 : 0) : 1
             ]);
         }
     }
@@ -649,27 +698,51 @@ class DataAccess {
      * @private
      */
     async _writePointsToSQLite(data) {
-        if (!Array.isArray(data)) return;
+        // 处理不同的数据格式
+        let points = [];
+        if (Array.isArray(data)) {
+            points = data;
+        } else if (data && data.records && Array.isArray(data.records)) {
+            points = data.records;
+        } else {
+            return;
+        }
         
-        // 清空现有数据
-        await sqliteConnection.run('DELETE FROM points');
+        if (points.length === 0) return;
         
-        // 插入新数据
+        // 使用 INSERT OR REPLACE 来处理重复记录
         const insertQuery = `
-            INSERT INTO points (id, studentId, points, reason, type, teacherId, createdBy, createdAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            INSERT OR REPLACE INTO points (id, studentId, points, reason, type, teacherId, createdBy, createdAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `;
         
-        for (const point of data) {
-            await sqliteConnection.run(insertQuery, [
-                point.id,
-                point.studentId,
-                point.points,
-                point.reason,
-                point.type,
-                point.teacherId || null,
-                point.createdBy || point.teacherId || 'system'
-            ]);
+        for (const point of points) {
+            // 确保必要字段不为空
+            const teacherId = point.teacherId || point.operatorId || null;
+            const createdBy = point.createdBy || point.operatorId || point.teacherId || 'system';
+            const createdAt = point.createdAt || point.timestamp || new Date().toISOString();
+            
+            try {
+                await sqliteConnection.run(insertQuery, [
+                    point.id,
+                    point.studentId,
+                    point.points,
+                    point.reason,
+                    point.type,
+                    teacherId,
+                    createdBy,
+                    createdAt
+                ]);
+            } catch (error) {
+                console.error(`插入积分记录失败:`, {
+                    point,
+                    teacherId,
+                    createdBy,
+                    createdAt,
+                    error: error.message
+                });
+                throw error;
+            }
         }
     }
 
@@ -678,7 +751,17 @@ class DataAccess {
      * @private
      */
     async _writeProductsToSQLite(data) {
-        if (!Array.isArray(data)) return;
+        // 处理不同的数据格式
+        let products = [];
+        if (Array.isArray(data)) {
+            products = data;
+        } else if (data && data.products && Array.isArray(data.products)) {
+            products = data.products;
+        } else {
+            return;
+        }
+        
+        if (products.length === 0) return;
         
         // 清空现有数据
         await sqliteConnection.run('DELETE FROM products');
@@ -689,16 +772,16 @@ class DataAccess {
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
         `;
         
-        for (const product of data) {
+        for (const product of products) {
             await sqliteConnection.run(insertQuery, [
                 product.id,
                 product.name,
-                product.description,
-                product.price,
+                product.description || '',
+                product.price || 0,
                 product.stock || 0,
-                product.image || null,
-                product.category || null,
-                product.hasOwnProperty('isActive') ? product.isActive : 1
+                product.image || product.imageUrl || '',
+                product.category || '',
+                product.hasOwnProperty('isActive') ? (product.isActive ? 1 : 0) : 1
             ]);
         }
     }
@@ -708,25 +791,38 @@ class DataAccess {
      * @private
      */
     async _writeOrdersToSQLite(data) {
-        if (!Array.isArray(data)) return;
+        // 处理不同的数据格式
+        let orders = [];
+        if (Array.isArray(data)) {
+            orders = data;
+        } else if (data && data.orders && Array.isArray(data.orders)) {
+            orders = data.orders;
+        } else {
+            return;
+        }
+        
+        if (orders.length === 0) return;
         
         // 清空现有数据
         await sqliteConnection.run('DELETE FROM orders');
         
         // 插入新数据
         const insertQuery = `
-            INSERT INTO orders (id, studentId, productId, quantity, totalPrice, status, createdAt, updatedAt)
-            VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            INSERT INTO orders (id, studentId, productId, quantity, totalPrice, status, reservedAt, confirmedAt, cancelledAt, createdAt, updatedAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
         `;
         
-        for (const order of data) {
+        for (const order of orders) {
             await sqliteConnection.run(insertQuery, [
                 order.id,
                 order.studentId,
                 order.productId,
-                order.quantity,
-                order.totalPrice,
-                order.status || 'pending'
+                order.quantity || 1,
+                order.totalPrice || order.price || 0,
+                order.status || 'pending',
+                order.reservedAt || null,
+                order.confirmedAt || null,
+                order.cancelledAt || null
             ]);
         }
     }
@@ -754,6 +850,21 @@ class DataAccess {
                 config.value,
                 config.description || null
             ]);
+        }
+    }
+
+    /**
+     * 确保SQLite连接
+     * @private
+     */
+    async _ensureSQLiteConnection() {
+        if (!sqliteConnection.isConnected) {
+            try {
+                await sqliteConnection.connect();
+            } catch (error) {
+                console.error('SQLite自动连接失败:', error);
+                throw error;
+            }
         }
     }
 }

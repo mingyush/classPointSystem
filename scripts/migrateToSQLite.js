@@ -70,7 +70,8 @@ class DataMigrator {
         console.log('👥 迁移学生数据...');
         
         try {
-            const students = await this.jsonDataAccess.readFile('students.json', []);
+            const studentsData = await this.jsonDataAccess.readFile('students.json', { students: [] });
+            const students = studentsData.students || [];
             
             if (students.length === 0) {
                 console.log('⚠️  未找到学生数据，跳过');
@@ -106,7 +107,8 @@ class DataMigrator {
         console.log('👨‍🏫 迁移教师数据...');
         
         try {
-            const teachers = await this.jsonDataAccess.readFile('teachers.json', []);
+            const teachersData = await this.jsonDataAccess.readFile('teachers.json', { teachers: [] });
+            const teachers = teachersData.teachers || [];
             
             if (teachers.length === 0) {
                 console.log('⚠️  未找到教师数据，跳过');
@@ -142,7 +144,8 @@ class DataMigrator {
         console.log('⭐ 迁移积分数据...');
         
         try {
-            const points = await this.jsonDataAccess.readFile('points.json', []);
+            const pointsData = await this.jsonDataAccess.readFile('points.json', { records: [] });
+            const points = pointsData.records || [];
             
             if (points.length === 0) {
                 console.log('⚠️  未找到积分数据，跳过');
@@ -178,7 +181,8 @@ class DataMigrator {
         console.log('🛍️  迁移商品数据...');
         
         try {
-            const products = await this.jsonDataAccess.readFile('products.json', []);
+            const productsData = await this.jsonDataAccess.readFile('products.json', { products: [] });
+            const products = productsData.products || [];
             
             if (products.length === 0) {
                 console.log('⚠️  未找到商品数据，跳过');
@@ -187,7 +191,7 @@ class DataMigrator {
             }
 
             // 写入SQLite
-            await this.sqliteDataAccess.writeFile('products.json', products);
+            await this.sqliteDataAccess.writeFile('products.json', productsData);
             
             this.migrationResults.tables.products = {
                 sourceCount: products.length,
@@ -214,7 +218,8 @@ class DataMigrator {
         console.log('📋 迁移订单数据...');
         
         try {
-            const orders = await this.jsonDataAccess.readFile('orders.json', []);
+            const ordersData = await this.jsonDataAccess.readFile('orders.json', { orders: [] });
+            const orders = ordersData.orders || [];
             
             if (orders.length === 0) {
                 console.log('⚠️  未找到订单数据，跳过');
@@ -223,7 +228,7 @@ class DataMigrator {
             }
 
             // 写入SQLite
-            await this.sqliteDataAccess.writeFile('orders.json', orders);
+            await this.sqliteDataAccess.writeFile('orders.json', ordersData);
             
             this.migrationResults.tables.orders = {
                 sourceCount: orders.length,

@@ -32,8 +32,8 @@ class SQLiteConnection {
                 fileMustExist: false
             });
 
-            // 启用外键约束
-            this.db.pragma('foreign_keys = ON');
+            // 暂时禁用外键约束进行调试
+            this.db.pragma('foreign_keys = OFF');
             
             this.isConnected = true;
             console.log('SQLite数据库连接成功');

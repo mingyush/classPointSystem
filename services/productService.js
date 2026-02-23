@@ -112,6 +112,12 @@ class ProductService {
             // 合并更新数据
             const existingProduct = data.products[productIndex];
             const updatedProductData = { ...existingProduct, ...updateData };
+            
+            // 确保isActive字段是布尔类型（处理从SQLite读取的数字类型）
+            if (updatedProductData.isActive !== undefined && typeof updatedProductData.isActive !== 'boolean') {
+                updatedProductData.isActive = Boolean(updatedProductData.isActive);
+            }
+            
             const updatedProduct = new Product(updatedProductData);
             
             // 验证更新后的商品数据

@@ -74,10 +74,16 @@ class OrderService {
      * 创建预约订单
      * @param {string} studentId - 学生ID
      * @param {string} productId - 商品ID
+     * @param {number} quantity - 预约数量，默认为1
      * @returns {Promise<Order>}
      */
-    async createReservation(studentId, productId) {
+    async createReservation(studentId, productId, quantity = 1) {
         try {
+            // 验证数量参数
+            if (!Number.isInteger(quantity) || quantity < 1) {
+                throw new Error('预约数量必须为正整数');
+            }
+
             // 验证学生是否存在
             const student = await this.studentService.getStudentById(studentId);
             if (!student) {
@@ -94,12 +100,15 @@ class OrderService {
                 throw new Error('商品已下架');
             }
 
-            if (product.stock <= 0) {
-                throw new Error('商品库存不足');
+            // 检查库存是否足够（使用ProductService的checkStock方法）
+            const hasStock = await this.productService.checkStock(productId, quantity);
+            if (!hasStock) {
+                throw new Error(`商品库存不足，当前库存：${product.stock}，请求数量：${quantity}`);
             }
 
             // 检查学生积分是否足够
-            if (student.balance < product.price) {
+            const totalPrice = product.price * quantity;
+            if (student.balance < totalPrice) {
                 throw new Error('积分不足');
             }
 
@@ -110,29 +119,42 @@ class OrderService {
                 throw new Error('该商品已有待处理的预约');
             }
 
+            // 先减少商品库存（预约时就锁定库存）
+            await this.productService.reduceStock(productId, quantity);
+
             // 创建订单
             const order = new Order({
                 studentId,
                 productId,
+                quantity,
                 status: 'pending'
             });
 
             // 验证订单数据
             const validation = order.validate();
             if (!validation.isValid) {
+                // 如果订单创建失败，需要恢复库存
+                await this.productService.increaseStock(productId, quantity);
                 throw new Error('订单数据验证失败: ' + validation.errors.join(', '));
             }
 
-            // 冻结学生积分（暂时扣除，但不记录积分变化）
-            await this.studentService.updateStudentBalance(studentId, student.balance - product.price);
+            try {
+                // 冻结学生积分（暂时扣除，但不记录积分变化）
+                await this.studentService.updateStudentBalance(studentId, student.balance - totalPrice);
 
-            // 保存订单
-            const data = await this.dataAccess.readFile(this.filename, this.defaultData);
-            data.orders.push(order.toJSON());
-            await this.dataAccess.writeFile(this.filename, data);
+                // 保存订单
+                const data = await this.dataAccess.readFile(this.filename, this.defaultData);
+                data.orders.push(order.toJSON());
+                await this.dataAccess.writeFile(this.filename, data);
 
-            console.log(`创建预约成功: 学生 ${studentId} 预约商品 ${productId} (订单ID: ${order.id})`);
-            return order;
+                console.log(`创建预约成功: 学生 ${studentId} 预约商品 ${productId} 数量 ${quantity} (订单ID: ${order.id})`);
+                return order;
+
+            } catch (error) {
+                // 如果积分扣除或订单保存失败，需要恢复库存
+                await this.productService.increaseStock(productId, quantity);
+                throw error;
+            }
 
         } catch (error) {
             console.error('创建预约失败:', error);
@@ -157,14 +179,13 @@ class OrderService {
                 throw new Error('只能确认待处理的订单');
             }
 
-            // 获取商品信息
+            // 获取商品信息（用于验证商品仍然存在）
             const product = await this.productService.getProductById(order.productId);
             if (!product) {
                 throw new Error('商品不存在');
             }
 
-            // 减少商品库存
-            await this.productService.reduceStock(order.productId, 1);
+            // 注意：库存已经在预约时减少了，这里不需要再减少库存
 
             // 更新订单状态
             const data = await this.dataAccess.readFile(this.filename, this.defaultData);
@@ -215,8 +236,15 @@ class OrderService {
                 throw new Error('学生或商品信息不存在');
             }
 
+            // 计算退还的积分（考虑数量）
+            const quantity = order.quantity || 1;
+            const refundAmount = product.price * quantity;
+
             // 退还冻结的积分
-            await this.studentService.updateStudentBalance(order.studentId, student.balance + product.price);
+            await this.studentService.updateStudentBalance(order.studentId, student.balance + refundAmount);
+
+            // 恢复商品库存
+            await this.productService.increaseStock(order.productId, quantity);
 
             // 更新订单状态
             const data = await this.dataAccess.readFile(this.filename, this.defaultData);
@@ -232,7 +260,7 @@ class OrderService {
             await this.dataAccess.writeFile(this.filename, data);
 
             const updatedOrder = new Order(data.orders[orderIndex]);
-            console.log(`取消预约成功: 订单 ${orderId}`);
+            console.log(`取消预约成功: 订单 ${orderId}，恢复库存 ${quantity}，退还积分 ${refundAmount}`);
             
             return updatedOrder;
 

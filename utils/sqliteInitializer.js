@@ -54,7 +54,8 @@ class SQLiteInitializer {
                 class TEXT NOT NULL,
                 studentId TEXT UNIQUE NOT NULL,
                 totalPoints INTEGER DEFAULT 0,
-                currentPoints INTEGER DEFAULT 0,
+                balance INTEGER DEFAULT 0,
+                isActive INTEGER DEFAULT 1,
                 avatar TEXT,
                 createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
                 updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
@@ -64,9 +65,35 @@ class SQLiteInitializer {
         sqliteConnection.run(createTableSQL);
         console.log('学生表创建完成');
         
+        // 检查并添加 isActive 字段（如果不存在）
+        try {
+            const tableInfo = sqliteConnection.all("PRAGMA table_info(students)");
+            const hasIsActiveField = tableInfo.some(column => column.name === 'isActive');
+            
+            if (!hasIsActiveField) {
+                console.log('检测到学生表缺少 isActive 字段，正在添加...');
+                sqliteConnection.run('ALTER TABLE students ADD COLUMN isActive INTEGER DEFAULT 1');
+                console.log('学生表 isActive 字段添加完成');
+            }
+        } catch (error) {
+            console.log('检查学生表字段时出错:', error.message);
+        }
+        
         // 创建索引
-        sqliteConnection.run('CREATE INDEX IF NOT EXISTS idx_students_studentId ON students(studentId)');
-        console.log('学生表索引创建完成');
+        try {
+            sqliteConnection.run('CREATE INDEX IF NOT EXISTS idx_students_studentId ON students(studentId)');
+            
+            // 只有在 isActive 字段存在时才创建索引
+            const tableInfo = sqliteConnection.all("PRAGMA table_info(students)");
+            const hasIsActiveField = tableInfo.some(column => column.name === 'isActive');
+            if (hasIsActiveField) {
+                sqliteConnection.run('CREATE INDEX IF NOT EXISTS idx_students_isActive ON students(isActive)');
+            }
+            
+            console.log('学生表索引创建完成');
+        } catch (error) {
+            console.log('创建学生表索引时出错:', error.message);
+        }
     }
 
     /**
@@ -155,13 +182,14 @@ class SQLiteInitializer {
                 id TEXT PRIMARY KEY,
                 studentId TEXT NOT NULL,
                 productId TEXT NOT NULL,
-                quantity INTEGER NOT NULL,
-                totalPrice INTEGER NOT NULL,
+                quantity INTEGER DEFAULT 1,
+                totalPrice INTEGER DEFAULT 0,
                 status TEXT DEFAULT 'pending',
+                reservedAt TEXT,
+                confirmedAt TEXT,
+                cancelledAt TEXT,
                 createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
-                updatedAt TEXT DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (studentId) REFERENCES students(id),
-                FOREIGN KEY (productId) REFERENCES products(id)
+                updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
             )
         `;
         

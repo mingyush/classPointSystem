@@ -1,5 +1,5 @@
 const DataAccess = require('./dataAccess');
-const { StudentInfo, PointRecord, Product, Order, SystemConfig } = require('../models/dataModels');
+const { StudentInfo, PointRecord, Product, Order, SystemConfig, Teacher } = require('../models/dataModels');
 
 /**
  * 数据初始化工具
@@ -22,6 +22,7 @@ class DataInitializer {
             
             // 初始化各个数据文件
             await this.initializeStudents();
+            await this.initializeTeachers();
             await this.initializePoints();
             await this.initializeProducts();
             await this.initializeOrders();
@@ -75,6 +76,43 @@ class DataInitializer {
 
         await this.dataAccess.readFile('students.json', defaultStudents);
         console.log('学生数据初始化完成');
+    }
+
+    /**
+     * 初始化教师数据
+     */
+    async initializeTeachers() {
+        const defaultTeachers = {
+            teachers: [
+                new Teacher({
+                    id: 'teacher001',
+                    name: '张老师',
+                    password: 'admin123',
+                    role: 'teacher',
+                    department: '数学组',
+                    isActive: true
+                }).toJSON(),
+                new Teacher({
+                    id: 'teacher002',
+                    name: '李老师',
+                    password: 'admin123',
+                    role: 'teacher',
+                    department: '语文组',
+                    isActive: true
+                }).toJSON(),
+                new Teacher({
+                    id: 'admin',
+                    name: '管理员',
+                    password: 'admin123',
+                    role: 'admin',
+                    department: '管理组',
+                    isActive: true
+                }).toJSON()
+            ]
+        };
+
+        await this.dataAccess.readFile('teachers.json', defaultTeachers);
+        console.log('教师数据初始化完成');
     }
 
     /**
@@ -178,6 +216,7 @@ class DataInitializer {
         
         try {
             await this.initializeStudents();
+            await this.initializeTeachers();
             await this.initializePoints();
             await this.initializeProducts();
             await this.initializeOrders();
@@ -196,6 +235,7 @@ class DataInitializer {
     async validateDataIntegrity() {
         const requiredFiles = [
             'students.json',
+            'teachers.json',
             'points.json', 
             'products.json',
             'orders.json',
@@ -249,6 +289,9 @@ class DataInitializer {
                 case 'students.json':
                     await this.initializeStudents();
                     break;
+                case 'teachers.json':
+                    await this.initializeTeachers();
+                    break;
                 case 'points.json':
                     await this.initializePoints();
                     break;
@@ -275,6 +318,9 @@ class DataInitializer {
                 switch (filename) {
                     case 'students.json':
                         await this.initializeStudents();
+                        break;
+                    case 'teachers.json':
+                        await this.initializeTeachers();
                         break;
                     case 'points.json':
                         await this.initializePoints();

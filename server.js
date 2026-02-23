@@ -22,18 +22,42 @@ const express = require('express');
 const path = require('path');
 const DataInitializer = require('./utils/dataInitializer');
 const { errorHandler, notFoundHandler, errorLogger, performanceMonitor } = require('./middleware/errorHandler');
+const { sqliteConnection } = require('./utils/sqliteConnection');
+const { sqliteInitializer } = require('./utils/sqliteInitializer');
 
 // 创建Express应用实例
 const app = express();
 const PORT = process.env.PORT || 3010;
 
+// ==================== 数据库初始化 ====================
+/**
+ * 初始化SQLite数据库连接
+ */
+async function initializeDatabase() {
+    try {
+        await sqliteConnection.connect();
+        // 初始化数据库表结构
+        await sqliteInitializer.initializeDatabase();
+        console.log('SQLite数据库初始化完成');
+    } catch (error) {
+        console.error('SQLite数据库初始化失败:', error);
+        // 如果SQLite初始化失败，继续使用JSON模式
+    }
+}
+
 // ==================== 数据初始化 ====================
 /**
  * 初始化系统数据文件
- * 确保所有必要的JSON数据文件存在并包含默认数据
+ * 确保所有必要的数据文件存在并包含默认数据
  */
-const dataInitializer = new DataInitializer();
-dataInitializer.initializeAllData().catch(console.error);
+async function initializeData() {
+    console.log('开始初始化数据文件...');
+    await initializeDatabase();
+    const dataInitializer = new DataInitializer();
+    await dataInitializer.initializeAllData();
+}
+
+initializeData().catch(console.error);
 
 // ==================== 中间件配置 ====================
 /**
