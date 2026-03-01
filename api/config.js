@@ -1,12 +1,10 @@
 const express = require('express');
-const path = require('path');
-const fs = require('fs').promises;
+const DataAccess = require('../utils/dataAccess');
 const sseService = require('../services/sseService');
 const { authenticateToken, requireTeacher } = require('./auth');
 const router = express.Router();
 
-// 配置文件路径
-const CONFIG_FILE = path.join(__dirname, '../data/config.json');
+const dataAccess = new DataAccess();
 
 // 默认配置
 const DEFAULT_CONFIG = {
@@ -21,28 +19,31 @@ const DEFAULT_CONFIG = {
 };
 
 /**
- * 读取配置文件
+ * 读取配置
  */
 async function readConfig() {
     try {
-        const data = await fs.readFile(CONFIG_FILE, 'utf8');
-        return { ...DEFAULT_CONFIG, ...JSON.parse(data) };
+        await dataAccess.ensureDirectories();
+        const config = await dataAccess.getAllConfig();
+        return { ...DEFAULT_CONFIG, ...config };
     } catch (error) {
-        if (error.code === 'ENOENT') {
-            // 文件不存在，创建默认配置
-            await writeConfig(DEFAULT_CONFIG);
-            return DEFAULT_CONFIG;
-        }
-        throw error;
+        console.error('读取配置失败:', error);
+        return DEFAULT_CONFIG;
     }
 }
 
 /**
- * 写入配置文件
+ * 写入配置
  */
 async function writeConfig(config) {
+    await dataAccess.ensureDirectories();
     const configData = { ...DEFAULT_CONFIG, ...config };
-    await fs.writeFile(CONFIG_FILE, JSON.stringify(configData, null, 2), 'utf8');
+
+    // 保存每个配置项
+    for (const [key, value] of Object.entries(configData)) {
+        await dataAccess.setConfig(key, value);
+    }
+
     return configData;
 }
 
@@ -94,7 +95,7 @@ router.post('/mode', async (req, res) => {
             // 验证token和教师权限
             const authHeader = req.headers['authorization'];
             const token = authHeader && authHeader.split(' ')[1];
-            
+
             if (!token) {
                 return res.status(401).json({
                     success: false,
@@ -107,7 +108,7 @@ router.post('/mode', async (req, res) => {
                 const jwt = require('jsonwebtoken');
                 const JWT_SECRET = process.env.JWT_SECRET || 'classroom-points-system-secret-key';
                 const user = jwt.verify(token, JWT_SECRET);
-                
+
                 if (!user || user.userType !== 'teacher') {
                     return res.status(403).json({
                         success: false,
@@ -126,12 +127,10 @@ router.post('/mode', async (req, res) => {
 
         // 读取当前配置
         const currentConfig = await readConfig();
-        
+
         // 更新模式
-        const updatedConfig = await writeConfig({
-            ...currentConfig,
-            mode: mode
-        });
+        await dataAccess.setConfig('mode', mode);
+        const updatedConfig = await readConfig();
 
         // 广播模式变更事件
         sseService.broadcastModeChange(mode);
@@ -238,7 +237,7 @@ router.put('/', authenticateToken, requireTeacher, async (req, res) => {
 
         // 读取当前配置
         const currentConfig = await readConfig();
-        
+
         // 合并更新
         const updatedConfig = await writeConfig({
             ...currentConfig,
@@ -289,9 +288,9 @@ router.post('/reset-points', authenticateToken, requireTeacher, async (req, res)
         // 调用积分服务的重置方法
         const PointsService = require('../services/pointsService');
         const pointsService = new PointsService();
-        
+
         await pointsService.resetAllPoints(req.user.userId, '管理员手动重置积分');
-        
+
         // 广播数据重置事件
         sseService.broadcastDataReset('points');
 
@@ -331,14 +330,9 @@ router.post('/reset-points/toggle', authenticateToken, requireTeacher, async (re
             });
         }
 
-        // 读取当前配置
-        const currentConfig = await readConfig();
-        
         // 更新配置
-        const updatedConfig = await writeConfig({
-            ...currentConfig,
-            pointsResetEnabled: enabled
-        });
+        await dataAccess.setConfig('pointsResetEnabled', enabled);
+        const updatedConfig = await readConfig();
 
         // 广播配置更新事件
         sseService.broadcastConfigUpdate(updatedConfig);

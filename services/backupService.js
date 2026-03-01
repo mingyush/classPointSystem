@@ -1,4 +1,5 @@
 const fs = require('fs').promises;
+const fsSync = require('fs');
 const path = require('path');
 const archiver = require('archiver');
 const unzipper = require('unzipper');
@@ -6,6 +7,7 @@ const DataAccess = require('../utils/dataAccess');
 
 /**
  * 备份服务 - 处理数据备份和恢复功能
+ * 适配 SQLite 数据库
  */
 class BackupService {
     constructor() {
@@ -13,15 +15,6 @@ class BackupService {
         this.dataDir = 'data';
         this.backupDir = path.join(this.dataDir, 'backups');
         this.exportDir = path.join(this.dataDir, 'exports');
-        
-        // 数据文件列表
-        this.dataFiles = [
-            'students.json',
-            'points.json',
-            'products.json',
-            'orders.json',
-            'config.json'
-        ];
     }
 
     /**
@@ -30,6 +23,7 @@ class BackupService {
     async ensureExportDirectory() {
         try {
             await fs.mkdir(this.exportDir, { recursive: true });
+            await fs.mkdir(this.backupDir, { recursive: true });
         } catch (error) {
             console.error('创建导出目录失败:', error);
             throw error;
@@ -42,41 +36,73 @@ class BackupService {
      */
     async createFullBackup() {
         await this.ensureExportDirectory();
-        
+        await this.dataAccess.ensureDirectories();
+
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         const backupFileName = `system-backup-${timestamp}.zip`;
         const backupPath = path.join(this.exportDir, backupFileName);
-        
+
         return new Promise((resolve, reject) => {
-            const output = require('fs').createWriteStream(backupPath);
+            const output = fsSync.createWriteStream(backupPath);
             const archive = archiver('zip', { zlib: { level: 9 } });
-            
+
             output.on('close', () => {
                 console.log(`系统备份创建成功: ${backupFileName} (${archive.pointer()} bytes)`);
                 resolve(backupPath);
             });
-            
+
             archive.on('error', (err) => {
                 console.error('创建备份失败:', err);
                 reject(err);
             });
-            
+
             archive.pipe(output);
-            
-            // 添加所有数据文件
-            this.dataFiles.forEach(file => {
-                const filePath = path.join(this.dataDir, file);
-                if (require('fs').existsSync(filePath)) {
-                    archive.file(filePath, { name: file });
-                }
-            });
-            
-            // 添加备份目录（最近的备份文件）
-            if (require('fs').existsSync(this.backupDir)) {
+
+            // 导出数据为 JSON 格式并添加到备份
+            const exportDataPromise = (async () => {
+                // 导出学生数据
+                const students = await this.dataAccess.getAllStudents();
+                archive.append(JSON.stringify({ students }, null, 2), { name: 'students.json' });
+
+                // 导出积分记录
+                const pointRecords = await this.dataAccess.getAllPointRecords();
+                archive.append(JSON.stringify({ records: pointRecords }, null, 2), { name: 'points.json' });
+
+                // 导出商品数据
+                const products = await this.dataAccess.getAllProducts();
+                archive.append(JSON.stringify({ products }, null, 2), { name: 'products.json' });
+
+                // 导出订单数据
+                const orders = await this.dataAccess.getAllOrders();
+                archive.append(JSON.stringify({ orders }, null, 2), { name: 'orders.json' });
+
+                // 导出教师数据
+                const teachers = await this.dataAccess.getAllTeachers();
+                archive.append(JSON.stringify({ teachers }, null, 2), { name: 'teachers.json' });
+
+                // 导出配置
+                const config = await this.dataAccess.getAllConfig();
+                archive.append(JSON.stringify(config, null, 2), { name: 'config.json' });
+
+                // 添加数据库统计信息
+                const stats = await this.dataAccess.getDatabaseStats();
+                archive.append(JSON.stringify(stats, null, 2), { name: 'backup_stats.json' });
+            })();
+
+            // 添加 SQLite 数据库文件
+            const dbPath = path.join(this.dataDir, 'database.sqlite');
+            if (fsSync.existsSync(dbPath)) {
+                archive.file(dbPath, { name: 'database.sqlite' });
+            }
+
+            // 添加备份目录
+            if (fsSync.existsSync(this.backupDir)) {
                 archive.directory(this.backupDir, 'backups');
             }
-            
-            archive.finalize();
+
+            exportDataPromise
+                .then(() => archive.finalize())
+                .catch(reject);
         });
     }
 
@@ -90,7 +116,7 @@ class BackupService {
             // 创建临时恢复目录
             const tempDir = path.join(this.dataDir, 'temp-restore');
             await fs.mkdir(tempDir, { recursive: true });
-            
+
             // 解压备份文件
             await new Promise((resolve, reject) => {
                 require('fs').createReadStream(backupFilePath)
@@ -98,37 +124,124 @@ class BackupService {
                     .on('close', resolve)
                     .on('error', reject);
             });
-            
+
             // 验证备份文件完整性
             const isValid = await this.validateBackupFiles(tempDir);
             if (!isValid) {
                 throw new Error('备份文件不完整或损坏');
             }
-            
+
             // 备份当前数据（以防恢复失败）
             const currentBackupPath = await this.createFullBackup();
             console.log(`当前数据已备份到: ${currentBackupPath}`);
-            
-            // 恢复数据文件
-            for (const file of this.dataFiles) {
-                const tempFilePath = path.join(tempDir, file);
-                const targetFilePath = path.join(this.dataDir, file);
-                
-                if (await this.fileExists(tempFilePath)) {
-                    await fs.copyFile(tempFilePath, targetFilePath);
-                    console.log(`恢复文件: ${file}`);
-                }
+
+            // 优先从 SQLite 数据库文件恢复
+            const dbPath = path.join(tempDir, 'database.sqlite');
+            if (fsSync.existsSync(dbPath)) {
+                const targetDbPath = path.join(this.dataDir, 'database.sqlite');
+                await fs.copyFile(dbPath, targetDbPath);
+                console.log('从 SQLite 数据库文件恢复成功');
+            } else {
+                // 从 JSON 文件恢复
+                await this.restoreFromJsonFiles(tempDir);
             }
-            
+
             // 清理临时目录
-            await fs.rmdir(tempDir, { recursive: true });
-            
+            await fs.rm(tempDir, { recursive: true, force: true });
+
             console.log('系统恢复完成');
             return true;
-            
+
         } catch (error) {
             console.error('系统恢复失败:', error);
             throw error;
+        }
+    }
+
+    /**
+     * 从 JSON 文件恢复数据
+     * @param {string} tempDir - 临时目录路径
+     */
+    async restoreFromJsonFiles(tempDir) {
+        const dataFiles = ['students.json', 'points.json', 'products.json', 'orders.json', 'teachers.json'];
+
+        for (const file of dataFiles) {
+            const tempFilePath = path.join(tempDir, file);
+
+            if (await this.fileExists(tempFilePath)) {
+                const content = await fs.readFile(tempFilePath, 'utf8');
+                const data = JSON.parse(content);
+
+                // 根据文件类型恢复数据
+                switch (file) {
+                    case 'students.json':
+                        await this.restoreStudents(data.students || []);
+                        break;
+                    case 'points.json':
+                        await this.restorePointRecords(data.records || []);
+                        break;
+                    case 'products.json':
+                        await this.restoreProducts(data.products || []);
+                        break;
+                    case 'orders.json':
+                        await this.restoreOrders(data.orders || []);
+                        break;
+                    case 'teachers.json':
+                        await this.restoreTeachers(data.teachers || []);
+                        break;
+                }
+                console.log(`恢复文件: ${file}`);
+            }
+        }
+    }
+
+    /**
+     * 恢复学生数据
+     */
+    async restoreStudents(students) {
+        await this.dataAccess._run('DELETE FROM students');
+        for (const student of students) {
+            await this.dataAccess.createStudent(student);
+        }
+    }
+
+    /**
+     * 恢复积分记录
+     */
+    async restorePointRecords(records) {
+        await this.dataAccess._run('DELETE FROM point_records');
+        for (const record of records) {
+            await this.dataAccess.createPointRecord(record);
+        }
+    }
+
+    /**
+     * 恢复商品数据
+     */
+    async restoreProducts(products) {
+        await this.dataAccess._run('DELETE FROM products');
+        for (const product of products) {
+            await this.dataAccess.createProduct(product);
+        }
+    }
+
+    /**
+     * 恢复订单数据
+     */
+    async restoreOrders(orders) {
+        await this.dataAccess._run('DELETE FROM orders');
+        for (const order of orders) {
+            await this.dataAccess.createOrder(order);
+        }
+    }
+
+    /**
+     * 恢复教师数据
+     */
+    async restoreTeachers(teachers) {
+        await this.dataAccess._run('DELETE FROM teachers');
+        for (const teacher of teachers) {
+            await this.dataAccess.createTeacher(teacher);
         }
     }
 
@@ -139,16 +252,22 @@ class BackupService {
      */
     async validateBackupFiles(backupDir) {
         try {
-            // 检查必要的数据文件是否存在
-            const requiredFiles = ['students.json', 'points.json', 'config.json'];
-            
+            // 检查是否有 SQLite 数据库文件
+            const dbPath = path.join(backupDir, 'database.sqlite');
+            if (fsSync.existsSync(dbPath)) {
+                return true;
+            }
+
+            // 否则检查必要的数据文件
+            const requiredFiles = ['students.json', 'points.json'];
+
             for (const file of requiredFiles) {
                 const filePath = path.join(backupDir, file);
                 if (!(await this.fileExists(filePath))) {
                     console.error(`缺少必要文件: ${file}`);
                     return false;
                 }
-                
+
                 // 验证JSON格式
                 try {
                     const content = await fs.readFile(filePath, 'utf8');
@@ -158,7 +277,7 @@ class BackupService {
                     return false;
                 }
             }
-            
+
             return true;
         } catch (error) {
             console.error('验证备份文件失败:', error);
@@ -175,12 +294,12 @@ class BackupService {
             await this.ensureExportDirectory();
             const files = await fs.readdir(this.exportDir);
             const backupFiles = files.filter(file => file.endsWith('.zip'));
-            
+
             const backupList = [];
             for (const file of backupFiles) {
                 const filePath = path.join(this.exportDir, file);
                 const stats = await fs.stat(filePath);
-                
+
                 backupList.push({
                     filename: file,
                     path: filePath,
@@ -189,10 +308,10 @@ class BackupService {
                     modified: stats.mtime
                 });
             }
-            
+
             // 按创建时间倒序排列
             return backupList.sort((a, b) => b.created - a.created);
-            
+
         } catch (error) {
             console.error('获取备份列表失败:', error);
             return [];
@@ -217,32 +336,51 @@ class BackupService {
     }
 
     /**
-     * 导出单个数据文件
-     * @param {string} dataType - 数据类型 (students, points, products, orders, config)
+     * 导出数据为 JSON 文件
+     * @param {string} dataType - 数据类型 (students, points, products, orders, teachers)
      * @returns {Promise<string>} 导出文件路径
      */
     async exportDataFile(dataType) {
-        const filename = `${dataType}.json`;
-        const sourcePath = path.join(this.dataDir, filename);
-        
-        if (!(await this.fileExists(sourcePath))) {
-            throw new Error(`数据文件不存在: ${filename}`);
-        }
-        
         await this.ensureExportDirectory();
-        
+
+        let data;
+        let filename;
+
+        switch (dataType) {
+            case 'students':
+                data = { students: await this.dataAccess.getAllStudents() };
+                break;
+            case 'points':
+                data = { records: await this.dataAccess.getAllPointRecords() };
+                break;
+            case 'products':
+                data = { products: await this.dataAccess.getAllProducts() };
+                break;
+            case 'orders':
+                data = { orders: await this.dataAccess.getAllOrders() };
+                break;
+            case 'teachers':
+                data = { teachers: await this.dataAccess.getAllTeachers() };
+                break;
+            case 'config':
+                data = await this.dataAccess.getAllConfig();
+                break;
+            default:
+                throw new Error(`不支持的数据类型: ${dataType}`);
+        }
+
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         const exportFileName = `${dataType}-export-${timestamp}.json`;
         const exportPath = path.join(this.exportDir, exportFileName);
-        
-        await fs.copyFile(sourcePath, exportPath);
+
+        await fs.writeFile(exportPath, JSON.stringify(data, null, 2), 'utf8');
         console.log(`导出数据文件: ${exportFileName}`);
-        
+
         return exportPath;
     }
 
     /**
-     * 导入单个数据文件
+     * 导入数据文件
      * @param {string} dataType - 数据类型
      * @param {string} importFilePath - 导入文件路径
      * @returns {Promise<boolean>} 导入是否成功
@@ -252,22 +390,31 @@ class BackupService {
             // 验证文件格式
             const content = await fs.readFile(importFilePath, 'utf8');
             const data = JSON.parse(content);
-            
-            // 验证数据结构（基本验证）
-            if (!Array.isArray(data) && typeof data !== 'object') {
-                throw new Error('数据格式不正确');
+
+            // 根据数据类型恢复
+            switch (dataType) {
+                case 'students':
+                    await this.restoreStudents(data.students || data);
+                    break;
+                case 'points':
+                    await this.restorePointRecords(data.records || data);
+                    break;
+                case 'products':
+                    await this.restoreProducts(data.products || data);
+                    break;
+                case 'orders':
+                    await this.restoreOrders(data.orders || data);
+                    break;
+                case 'teachers':
+                    await this.restoreTeachers(data.teachers || data);
+                    break;
+                default:
+                    throw new Error(`不支持的数据类型: ${dataType}`);
             }
-            
-            // 备份当前文件
-            const filename = `${dataType}.json`;
-            await this.dataAccess.createBackup(filename);
-            
-            // 导入新数据
-            await this.dataAccess.writeFile(filename, data);
-            
+
             console.log(`导入数据文件成功: ${dataType}`);
             return true;
-            
+
         } catch (error) {
             console.error(`导入数据文件失败 ${dataType}:`, error);
             throw error;
@@ -283,17 +430,17 @@ class BackupService {
         try {
             const backupList = await this.getBackupList();
             const filesToDelete = backupList.slice(keepCount);
-            
+
             let deletedCount = 0;
             for (const backup of filesToDelete) {
                 if (await this.deleteBackup(backup.filename)) {
                     deletedCount++;
                 }
             }
-            
+
             console.log(`清理了 ${deletedCount} 个旧的导出文件`);
             return deletedCount;
-            
+
         } catch (error) {
             console.error('清理旧导出文件失败:', error);
             return 0;
@@ -306,25 +453,7 @@ class BackupService {
      */
     async getDataStatistics() {
         try {
-            const stats = {};
-            
-            for (const file of this.dataFiles) {
-                const filePath = path.join(this.dataDir, file);
-                if (await this.fileExists(filePath)) {
-                    const fileStats = await fs.stat(filePath);
-                    const content = await fs.readFile(filePath, 'utf8');
-                    const data = JSON.parse(content);
-                    
-                    stats[file] = {
-                        size: fileStats.size,
-                        modified: fileStats.mtime,
-                        recordCount: Array.isArray(data) ? data.length : Object.keys(data).length
-                    };
-                }
-            }
-            
-            return stats;
-            
+            return await this.dataAccess.getDatabaseStats();
         } catch (error) {
             console.error('获取数据统计失败:', error);
             return {};

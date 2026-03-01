@@ -9,7 +9,6 @@ const StudentService = require("./studentService");
 class PointsService {
   constructor() {
     this.dataAccess = new DataAccess();
-    this.filename = "points.json";
     this.studentService = new StudentService();
 
     // 缓存机制
@@ -25,15 +24,20 @@ class PointsService {
   }
 
   /**
+   * 确保数据访问层初始化
+   */
+  async _ensureInit() {
+    await this.dataAccess.ensureDirectories();
+  }
+
+  /**
    * 获取所有积分记录
    * @returns {Promise<PointRecord[]>}
    */
   async getAllPointRecords() {
     try {
-      const data = await this.dataAccess.readFile(this.filename, {
-        records: [],
-      });
-      const records = data.records || [];
+      await this._ensureInit();
+      const records = await this.dataAccess.getAllPointRecords();
       return records.map((record) => new PointRecord(record));
     } catch (error) {
       console.error("获取积分记录失败:", error);
@@ -49,20 +53,13 @@ class PointsService {
    */
   async getPointRecordsByStudent(studentId, limit = null) {
     try {
+      await this._ensureInit();
       if (!studentId || typeof studentId !== "string") {
         throw new Error("学号不能为空且必须为字符串");
       }
 
-      const records = await this.getAllPointRecords();
-      let studentRecords = records
-        .filter((record) => record.studentId === studentId)
-        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-      if (limit && typeof limit === "number" && limit > 0) {
-        studentRecords = studentRecords.slice(0, limit);
-      }
-
-      return studentRecords;
+      const records = await this.dataAccess.getPointRecordsByStudent(studentId, limit);
+      return records.map((record) => new PointRecord(record));
     } catch (error) {
       console.error(`获取学生积分记录失败 (${studentId}):`, error);
       throw error;
@@ -76,6 +73,7 @@ class PointsService {
    */
   async addPointRecord(recordData) {
     try {
+      await this._ensureInit();
       const record = new PointRecord(recordData);
       const validation = record.validate();
 
@@ -84,32 +82,20 @@ class PointsService {
       }
 
       // 验证学生是否存在
-      const student = await this.studentService.getStudentById(
-        record.studentId,
-      );
+      const student = await this.studentService.getStudentById(record.studentId);
       if (!student) {
         throw new Error(`学生不存在: ${record.studentId}`);
       }
 
       // 添加记录
-      const data = await this.dataAccess.readFile(this.filename, {
-        records: [],
-      });
-      if (!Array.isArray(data.records)) {
-        data.records = [];
-      }
-      data.records.push(record.toJSON());
-      await this.dataAccess.writeFile(this.filename, data);
+      await this.dataAccess.createPointRecord(record.toJSON());
 
       // 更新学生余额
       const newBalance = student.balance + record.points;
-      await this.studentService.updateStudentBalance(
-        record.studentId,
-        newBalance,
-      );
+      await this.studentService.updateStudentBalance(record.studentId, newBalance);
 
       console.log(
-        `添加积分记录成功: ${record.studentId} ${record.points > 0 ? "+" : ""}${record.points} (${record.reason})`,
+        `添加积分记录成功: ${record.studentId} ${record.points > 0 ? "+" : ""}${record.points} (${record.reason})`
       );
       return record;
     } catch (error) {
@@ -143,16 +129,11 @@ class PointsService {
       const students = await this.studentService.getAllStudents();
 
       for (const student of students) {
-        const calculatedBalance = await this.calculateStudentBalance(
-          student.id,
-        );
+        const calculatedBalance = await this.calculateStudentBalance(student.id);
         if (student.balance !== calculatedBalance) {
-          await this.studentService.updateStudentBalance(
-            student.id,
-            calculatedBalance,
-          );
+          await this.studentService.updateStudentBalance(student.id, calculatedBalance);
           console.log(
-            `同步学生积分余额: ${student.name} (${student.id}) ${student.balance} -> ${calculatedBalance}`,
+            `同步学生积分余额: ${student.name} (${student.id}) ${student.balance} -> ${calculatedBalance}`
           );
         }
       }
@@ -172,6 +153,8 @@ class PointsService {
    */
   async getPointsRanking(type = "total", limit = 50) {
     try {
+      await this._ensureInit();
+
       // 使用缓存机制避免重复计算
       const cacheKey = `ranking_${type}_${limit}`;
       const cached = this._getRankingCache(cacheKey);
@@ -242,18 +225,15 @@ class PointsService {
     const startOfDay = new Date(
       today.getFullYear(),
       today.getMonth(),
-      today.getDate(),
+      today.getDate()
     );
     const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
 
-    // 一次性获取所有记录，避免多次文件读取
-    const allRecords = await this.getAllPointRecords();
-
-    // 预过滤当日记录
-    const todayRecords = allRecords.filter((record) => {
-      const recordDate = new Date(record.timestamp);
-      return recordDate >= startOfDay && recordDate < endOfDay;
-    });
+    // 使用 SQLite 直接查询当日记录
+    const todayRecords = await this.dataAccess.getPointRecordsByDateRange(
+      startOfDay.toISOString(),
+      endOfDay.toISOString()
+    );
 
     // 使用Map进行高效分组统计
     const studentPointsMap = new Map();
@@ -291,25 +271,18 @@ class PointsService {
   async getWeeklyRanking(students) {
     const today = new Date();
     const dayOfWeek = today.getDay();
-    // 修正：周一作为一周的开始 (在中国习惯中)
-    // 如果今天是周日(dayOfWeek === 0)，则需要回退6天到周一
-    // 如果今天是周六(dayOfWeek === 6)，则需要回退5天到周一
-    // 一般情况下，需要回退 (dayOfWeek + 6) % 7 天
-    const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // 周一为0, 周二为1, ..., 周日为6
+    const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
     const startOfWeek = new Date(
-      today.getTime() - daysToSubtract * 24 * 60 * 60 * 1000,
+      today.getTime() - daysToSubtract * 24 * 60 * 60 * 1000
     );
     startOfWeek.setHours(0, 0, 0, 0);
     const endOfWeek = new Date(startOfWeek.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-    // 一次性获取所有记录，避免多次文件读取
-    const allRecords = await this.getAllPointRecords();
-
-    // 预过滤本周记录
-    const weekRecords = allRecords.filter((record) => {
-      const recordDate = new Date(record.timestamp);
-      return recordDate >= startOfWeek && recordDate < endOfWeek;
-    });
+    // 使用 SQLite 直接查询本周记录
+    const weekRecords = await this.dataAccess.getPointRecordsByDateRange(
+      startOfWeek.toISOString(),
+      endOfWeek.toISOString()
+    );
 
     // 使用Map进行高效分组统计
     const studentPointsMap = new Map();
@@ -389,7 +362,7 @@ class PointsService {
         totalPointsDeducted: Math.abs(
           records
             .filter((r) => r.points < 0)
-            .reduce((sum, r) => sum + r.points, 0),
+            .reduce((sum, r) => sum + r.points, 0)
         ),
         averageBalance: 0,
         activeStudents: 0,
@@ -401,7 +374,7 @@ class PointsService {
           Math.round(
             (students.reduce((sum, s) => sum + s.balance, 0) /
               students.length) *
-              100,
+              100
           ) / 100;
         stats.activeStudents = students.filter((s) => s.balance > 0).length;
       }
@@ -449,7 +422,7 @@ class PointsService {
     }
 
     console.log(
-      `批量添加积分记录完成: 成功 ${results.success.length}, 失败 ${results.failed.length}`,
+      `批量添加积分记录完成: 成功 ${results.success.length}, 失败 ${results.failed.length}`
     );
     return results;
   }
@@ -463,22 +436,14 @@ class PointsService {
    */
   async getPointRecordsByDateRange(startDate, endDate, studentId = null) {
     try {
-      let records = await this.getAllPointRecords();
-
-      // 按时间范围过滤
-      records = records.filter((record) => {
-        const recordDate = new Date(record.timestamp);
-        return recordDate >= startDate && recordDate <= endDate;
-      });
-
-      // 按学生过滤（如果指定）
-      if (studentId) {
-        records = records.filter((record) => record.studentId === studentId);
-      }
-
-      return records.sort(
-        (a, b) => new Date(b.timestamp) - new Date(a.timestamp),
+      await this._ensureInit();
+      const records = await this.dataAccess.getPointRecordsByDateRange(
+        startDate.toISOString(),
+        endDate.toISOString(),
+        studentId
       );
+
+      return records.map((record) => new PointRecord(record));
     } catch (error) {
       console.error("获取时间范围积分记录失败:", error);
       throw error;
@@ -525,14 +490,11 @@ class PointsService {
    */
   _optimizedSort(data, limit) {
     if (!limit || limit >= data.length) {
-      // 如果不需要限制或限制大于数据长度，使用标准排序
       return data.sort((a, b) => b.points - a.points);
     }
 
-    // 使用部分排序算法，只排序前limit个元素
     const result = [...data];
 
-    // 使用快速选择算法的变种
     for (let i = 0; i < Math.min(limit, result.length); i++) {
       let maxIndex = i;
       for (let j = i + 1; j < result.length; j++) {
@@ -573,7 +535,6 @@ class PointsService {
       timestamp: Date.now(),
     });
 
-    // 限制缓存大小，防止内存泄漏
     if (this.rankingCache.size > 50) {
       const firstKey = this.rankingCache.keys().next().value;
       this.rankingCache.delete(firstKey);
@@ -628,15 +589,13 @@ class PointsService {
     const startTime = Date.now();
 
     try {
-      // 并行获取所有排行榜
       const promises = types.map((type) =>
-        this.getPointsRanking(type, limit).then((data) => ({ [type]: data })),
+        this.getPointsRanking(type, limit).then((data) => ({ [type]: data }))
       );
 
       const results = await Promise.all(promises);
       const rankings = Object.assign({}, ...results);
 
-      // 更新性能指标
       this.performanceMetrics.queryCount++;
       const queryTime = Date.now() - startTime;
       this.performanceMetrics.averageQueryTime =
@@ -657,7 +616,6 @@ class PointsService {
     try {
       console.log("开始预热积分服务缓存...");
 
-      // 预加载常用的排行榜数据
       await Promise.all([
         this.getPointsRanking("total", 50),
         this.getPointsRanking("daily", 20),
