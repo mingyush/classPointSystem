@@ -44,6 +44,9 @@ dataInitializer.initializeAllData().catch(console.error);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// 忽略对 favicon.ico 的请求，避免抛出 404 错误并污染日志
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
 /**
  * 性能监控中间件
  * 监控API响应时间、内存使用等性能指标
