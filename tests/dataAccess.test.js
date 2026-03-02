@@ -137,12 +137,7 @@ describe('DataAccess', () => {
     });
 
     beforeEach(async () => {
-        // 清理测试文件
-        try {
-            await fs.unlink(path.join(testDir, testFile));
-        } catch (error) {
-            // 文件不存在，忽略错误
-        }
+        await dataAccess.deleteFile(testFile);
     });
 
     test('应该能够创建数据目录', async () => {

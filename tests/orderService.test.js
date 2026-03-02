@@ -72,7 +72,12 @@ async function cleanupServiceTest() {
 
 // 重置测试数据
 async function resetServiceTestData() {
-    await dataAccess.writeFile('orders.json', { orders: [] });
+    await orderService.dataAccess.writeFile('orders.json', { orders: [] }, true);
+    orderService.dataAccess.clearCache();
+    orderService.studentService.dataAccess.clearCache();
+    orderService.productService.dataAccess.clearCache();
+    studentService.dataAccess.clearCache();
+    productService.dataAccess.clearCache();
     await studentService.updateStudentBalance(testStudent.id, 200);
     await productService.updateProduct(createdProduct.id, { stock: 10, isActive: true });
 }
@@ -93,6 +98,7 @@ async function testCreateReservation() {
             console.log('✓ 成功创建预约订单测试通过');
             
             // 验证学生积分被冻结
+            studentService.dataAccess.clearCache();
             const updatedStudent = await studentService.getStudentById(testStudent.id);
             if (updatedStudent.balance === 50) {
                 console.log('✓ 积分冻结验证通过');
@@ -211,6 +217,7 @@ async function testConfirmReservation() {
             console.log('✓ 成功确认预约订单测试通过');
             
             // 验证商品库存减少
+            productService.dataAccess.clearCache();
             const updatedProduct = await productService.getProductById(createdProduct.id);
             if (updatedProduct.stock === 9) {
                 console.log('✓ 库存减少验证通过');
@@ -452,4 +459,8 @@ async function runServiceTests() {
 }
 
 // 运行测试
-runServiceTests();
+if (require.main === module) {
+    runServiceTests()
+        .then(() => process.exit(0))
+        .catch(() => process.exit(1));
+}

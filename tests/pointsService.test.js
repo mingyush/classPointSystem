@@ -1,5 +1,4 @@
 const fs = require('fs').promises;
-const path = require('path');
 const PointsService = require('../services/pointsService');
 const StudentService = require('../services/studentService');
 const { PointRecord } = require('../models/dataModels');
@@ -175,13 +174,11 @@ describe('PointsService', () => {
     });
 
     beforeEach(async () => {
-        // 清理测试数据
-        try {
-            await fs.unlink(path.join(testDir, 'points.json'));
-            await fs.unlink(path.join(testDir, 'students.json'));
-        } catch (error) {
-            // 文件不存在，忽略错误
-        }
+        await pointsService.dataAccess.deleteFile('points.json');
+        await studentService.dataAccess.deleteFile('students.json');
+        pointsService.dataAccess.clearCache();
+        pointsService.studentService.dataAccess.clearCache();
+        studentService.dataAccess.clearCache();
         
         // 创建测试学生
         await studentService.createStudent(testStudent);
@@ -365,6 +362,7 @@ describe('PointsService', () => {
 
         // 同步余额
         await pointsService.syncAllStudentBalances();
+        studentService.dataAccess.clearCache();
         
         const student = await studentService.getStudentById(testStudent.id);
         const calculatedBalance = await pointsService.calculateStudentBalance(testStudent.id);

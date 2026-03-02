@@ -5,9 +5,8 @@
 
 const http = require('http');
 const express = require('express');
-const fs = require('fs').promises;
-const path = require('path');
 const DataInitializer = require('../utils/dataInitializer');
+const DataAccess = require('../utils/dataAccess');
 
 // 创建测试用的Express应用
 function createTestApp() {
@@ -115,7 +114,7 @@ async function runConfigTests() {
         console.log('配置测试数据准备完成\n');
         
         const app = createTestApp();
-        const configFile = path.join(__dirname, '../data/config.json');
+        const dataAccess = new DataAccess();
         
         // 确保配置文件存在
         const originalConfig = {
@@ -125,7 +124,7 @@ async function runConfigTests() {
             maxPointsPerOperation: 100,
             semesterStartDate: '2024-09-01T00:00:00.000Z'
         };
-        await fs.writeFile(configFile, JSON.stringify(originalConfig, null, 2));
+        await dataAccess.writeFile('config.json', originalConfig, true);
         
         // 获取教师token
         const loginResponse = await makeRequest(app, 'POST', '/api/auth/teacher-login', {
@@ -253,7 +252,7 @@ async function runConfigTests() {
         assert(disabledResetResponse.body.code === 'RESET_DISABLED', '功能禁用错误码正确');
         
         // 恢复原始配置
-        await fs.writeFile(configFile, JSON.stringify(originalConfig, null, 2));
+        await dataAccess.writeFile('config.json', originalConfig, true);
         
     } catch (error) {
         console.error('配置测试过程中发生错误:', error);
@@ -270,7 +269,12 @@ async function runConfigTests() {
 
 // 运行测试
 if (require.main === module) {
-    runConfigTests().catch(console.error);
+    runConfigTests()
+        .then(() => process.exit(0))
+        .catch((error) => {
+            console.error(error);
+            process.exit(1);
+        });
 }
 
 module.exports = { runConfigTests };

@@ -1,5 +1,4 @@
 const fs = require('fs').promises;
-const path = require('path');
 const StudentService = require('../services/studentService');
 const { StudentInfo } = require('../models/dataModels');
 
@@ -163,12 +162,7 @@ describe('StudentService', () => {
     });
 
     beforeEach(async () => {
-        // 清理测试数据
-        try {
-            await fs.unlink(path.join(testDir, 'students.json'));
-        } catch (error) {
-            // 文件不存在，忽略错误
-        }
+        await studentService.dataAccess.deleteFile('students.json');
     });
 
     test('应该能够创建新学生', async () => {
