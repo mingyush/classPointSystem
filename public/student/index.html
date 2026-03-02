@@ -4,122 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>学生查询 - 班级积分管理系统</title>
-    <!-- Fresh Classroom Fonts: Nunito Sans & Varela Round -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@300;400;500;600;700;800;900&family=Varela+Round&display=swap" rel="stylesheet">
-    
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        brand: {
-                            50: '#ECFEFF', // Very light cyan background
-                            100: '#CFFAFE',
-                            200: '#A5F3FC',
-                            300: '#67E8F9',
-                            400: '#22D3EE', // Secondary
-                            500: '#06B6D4', // Primary Cyan
-                            600: '#0891B2',
-                            700: '#0E7490',
-                            800: '#155E75',
-                            900: '#164E63', // Darkest Text
-                            950: '#083344',
-                        },
-                        accent: {
-                            400: '#4ADE80',
-                            500: '#22C55E', // CTA Green
-                            600: '#16A34A',
-                            700: '#15803D',
-                        }
-                    },
-                    fontFamily: {
-                        sans: ['"Nunito Sans"', "system-ui", "sans-serif"],
-                        display: ['"Varela Round"', "system-ui", "sans-serif"],
-                    }
-                }
-            }
-        }
-    </script>
-    
     <link rel="stylesheet" href="/css/common.css">
+    <link rel="stylesheet" href="/css/student.css">
     <link rel="stylesheet" href="/css/menu.css">
-
-    <style>
-        /* Vibrant Tech Block Style */
-        .clay-panel {
-            background: #ffffff;
-            border-radius: 20px;
-            border: 4px solid #164E63;
-            box-shadow: 6px 6px 0px rgba(22, 78, 99, 1);
-            transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-        }
-        .clay-header {
-            background: #ffffff;
-            border-bottom: 4px solid #164E63;
-            box-shadow: 0 6px 0px -2px rgba(22, 78, 99, 1);
-        }
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 10px; height: 10px; }
-        ::-webkit-scrollbar-track { background: #ECFEFF; border-radius: 5px; }
-        ::-webkit-scrollbar-thumb { background: #67E8F9; border-radius: 5px; border: 2px solid #ECFEFF; }
-        ::-webkit-scrollbar-thumb:hover { background: #22D3EE; }
-
-        body {
-            background-color: #ECFEFF;
-            color: #164E63;
-            min-height: 100vh;
-            background-image:
-              radial-gradient(
-                circle at 15% 50%,
-                rgba(6, 182, 212, 0.08),
-                transparent 25%
-              ),
-              radial-gradient(
-                circle at 85% 30%,
-                rgba(34, 197, 94, 0.08),
-                transparent 25%
-              );
-            background-attachment: fixed;
-        }
-
-        /* Minimal overrides to disable old global styles */
-        .student-container {
-            all: unset;
-        }
-    </style>
 </head>
-<body class="font-sans antialiased text-brand-950 flex flex-col min-h-screen selection:bg-brand-200 selection:text-brand-900">
-    
-    <header class="clay-header sticky top-0 z-50 px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4 transition-all duration-300">
-        <h1 class="text-xl md:text-2xl font-display font-black tracking-widest uppercase text-brand-900 flex items-center gap-3">
-            <svg class="w-8 h-8 text-[#06B6D4]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 14l9-5-9-5-9 5 9 5z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"></path></svg>
-            学生个人主页
-        </h1>
-        <div class="flex flex-wrap items-center justify-center gap-3">
-            <a href="/" class="px-5 py-2 text-sm font-black uppercase rounded-lg bg-white hover:bg-[#CFFAFE] text-brand-900 border-4 border-brand-900 shadow-[4px_4px_0px_rgba(22,78,99,1)] hover:-translate-y-1 hover:shadow-[6px_6px_0px_rgba(22,78,99,1)] active:translate-y-1 active:shadow-[0px_0px_0px_rgba(22,78,99,1)] transition-all focus:outline-none tracking-widest">返回首页</a>
-            <button id="logoutBtn" style="display: none;" class="px-5 py-2 text-sm font-black uppercase rounded-lg bg-[#FCA5A5] hover:bg-[#F87171] text-[#7F1D1D] border-4 border-[#7F1D1D] shadow-[4px_4px_0px_rgba(127,29,29,1)] hover:-translate-y-1 hover:shadow-[6px_6px_0px_rgba(127,29,29,1)] active:translate-y-1 active:shadow-[0px_0px_0px_rgba(127,29,29,1)] transition-all focus:outline-none tracking-widest">
-                退出登录
-            </button>
-        </div>
-    </header>
-    
-    <main id="studentContent" class="flex-grow p-4 md:p-6 lg:p-8 max-w-[1200px] w-full mx-auto flex items-center justify-center">
-        <!-- 登录表单将由 JS 渲染或者直接渲染在这里 -->
-        <div class="clay-panel p-8 w-full max-w-md bg-[#ECFEFF]">
-            <h2 class="text-2xl font-display font-black text-brand-900 mb-6 text-center uppercase tracking-widest border-b-4 border-brand-900 pb-4">请输入学号登录</h2>
-            <div class="space-y-6">
-                <div>
-                    <input type="text" id="studentId" placeholder="请输入10位学号" maxlength="10" class="w-full bg-white border-4 border-brand-900 rounded-xl px-4 py-4 text-center text-xl text-brand-900 placeholder-brand-900/40 focus:outline-none focus:ring-4 focus:ring-[#67E8F9] focus:border-brand-900 font-mono font-black shadow-[4px_4px_0px_rgba(22,78,99,1)] transition-all uppercase">
-                </div>
-                <button id="loginBtn" class="w-full py-4 rounded-xl bg-[#22C55E] hover:bg-[#16A34A] text-white border-4 border-brand-900 font-display font-black text-xl transition-all shadow-[6px_6px_0px_rgba(22,78,99,1)] active:translate-y-1 active:shadow-[2px_2px_0px_rgba(22,78,99,1)] hover:-translate-y-1 uppercase tracking-widest">登录查询</button>
+<body>
+    <div class="student-container">
+        <header>
+            <h1>学生查询系统</h1>
+            <a href="/" class="back-link">返回首页</a>
+        </header>
+        
+        <main id="studentContent">
+            <!-- 内容将通过JavaScript动态加载 -->
+            <div class="login-form">
+                <h2>请输入学号登录</h2>
+                <input type="text" id="studentId" placeholder="请输入学号" maxlength="10">
+                <button id="loginBtn">登录</button>
             </div>
-        </div>
-    </main>
+        </main>
+    </div>
     
     <script src="/js/common.js"></script>
     <script src="/js/menu.js"></script>

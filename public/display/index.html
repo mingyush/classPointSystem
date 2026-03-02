@@ -1,249 +1,41 @@
-<!doctype html>
-<html lang="zh-CN" class="dark">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>大屏展示 - 班级积分管理系统</title>
-
-    <!-- Fresh Classroom Fonts: Nunito Sans & Varela Round -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@300;400;500;600;700;800;900&family=Varela+Round&display=swap"
-      rel="stylesheet"
-    />
-
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        darkMode: "class",
-        theme: {
-          extend: {
-            colors: {
-              brand: {
-                50: '#ECFEFF', // Very light cyan background
-                100: '#CFFAFE',
-                200: '#A5F3FC',
-                300: '#67E8F9',
-                400: '#22D3EE', // Secondary
-                500: '#06B6D4', // Primary Cyan
-                600: '#0891B2',
-                700: '#0E7490',
-                800: '#155E75',
-                900: '#164E63', // Darkest Text
-                950: '#083344',
-              },
-              accent: {
-                400: '#4ADE80',
-                500: '#22C55E', // CTA Green
-                600: '#16A34A',
-                700: '#15803D',
-              }
-            },
-            fontFamily: {
-              sans: ['"Nunito Sans"', "system-ui", "sans-serif"],
-              display: ['"Varela Round"', "system-ui", "sans-serif"],
-            },
-            animation: {
-              "fade-in-up": "fadeInUp 0.6s ease forwards",
-              "slide-in-up": "slideInUp 0.5s ease forwards",
-              "pulse-glow":
-                "pulseGlow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-            },
-            keyframes: {
-              fadeInUp: {
-                "0%": { opacity: "0", transform: "translateY(20px)" },
-                "100%": { opacity: "1", transform: "translateY(0)" },
-              },
-              slideInUp: {
-                "0%": {
-                  opacity: "0",
-                  transform: "translateY(30px) scale(0.95)",
-                },
-                "100%": { opacity: "1", transform: "translateY(0) scale(1)" },
-              },
-              pulseGlow: {
-                "0%, 100%": {
-                  opacity: "1",
-                  filter: "drop-shadow(0 0 12px rgba(99, 102, 241, 0.4))",
-                },
-                "50%": {
-                  opacity: ".8",
-                  filter: "drop-shadow(0 0 4px rgba(99, 102, 241, 0.2))",
-                },
-              },
-            },
-          },
-        },
-      };
-    </script>
-
-    <!-- CountUp.js for smooth number transitions -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/countup.js/2.8.0/countUp.umd.js"></script>
-
-    <!-- Fallback CSS for existing scripts & transition classes -->
-    <link rel="stylesheet" href="/css/common.css" />
-    <link rel="stylesheet" href="/css/display.css" />
-    <link rel="stylesheet" href="/css/menu.css" />
-
-    <style>
-      /* Vibrant & Block-based styling */
-      .clay-panel {
-        background: #ffffff;
-        border-radius: 24px;
-        border: 4px solid #164E63; /* Bold dark edges for playful look */
-        box-shadow: 6px 6px 0px rgba(22, 78, 99, 1); /* Hard block shadow */
-        transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-      }
-      .clay-header {
-        background: #ffffff;
-        border-bottom: 4px solid #164E63;
-        box-shadow: 0 6px 0px -2px rgba(22, 78, 99, 1);
-      }
-      /* Custom Scrollbar */
-      ::-webkit-scrollbar {
-        width: 10px;
-        height: 10px;
-      }
-      ::-webkit-scrollbar-track {
-        background: #ECFEFF;
-        border-radius: 5px;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #67E8F9;
-        border-radius: 5px;
-        border: 2px solid #ECFEFF;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #22D3EE;
-      }
-
-      body {
-        background-color: #ECFEFF;
-        background-image:
-          radial-gradient(
-            circle at 15% 50%,
-            rgba(6, 182, 212, 0.08),
-            transparent 25%
-          ),
-          radial-gradient(
-            circle at 85% 30%,
-            rgba(34, 197, 94, 0.08),
-            transparent 25%
-          );
-        background-attachment: fixed;
-        color: #164E63;
-        min-height: 100vh;
-      }
-
-      /* Rank change specific coloring for Tailwind processing via JS */
-      .rank-up {
-        color: #10b981;
-      }
-      .rank-down {
-        color: #ef4444;
-      }
-    </style>
-  </head>
-  <body
-    class="font-sans antialiased text-brand-950 selection:bg-brand-200 selection:text-brand-900 flex flex-col items-stretch overflow-x-hidden min-h-screen"
-  >
-    <header
-      class="clay-header sticky top-0 z-50 px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4 transition-all duration-300"
-    >
-      <div class="flex items-center gap-4">
-        <h1
-          class="text-2xl md:text-3xl font-display font-bold tracking-tight text-brand-700 flex items-center gap-3"
-        >
-          <svg
-            class="w-8 h-8 text-brand-500"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2.5"
-              d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-            ></path>
-          </svg>
-          班级积分管理系统
-        </h1>
-        <div
-          id="modeIndicator"
-          class="px-4 py-1.5 text-sm font-black tracking-widest uppercase rounded-lg bg-[#A5F3FC] text-[#0E7490] border-4 border-[#0E7490] shadow-[4px_4px_0px_rgba(14,116,144,1)]"
-        >
-          平时模式
-        </div>
-      </div>
-
-        <div class="flex items-center gap-3">
-          <button
-            id="modeToggle"
-            class="px-5 py-2.5 text-sm font-black uppercase rounded-lg bg-white hover:bg-brand-50 text-brand-900 border-4 border-brand-900 shadow-[4px_4px_0px_rgba(22,78,99,1)] hover:-translate-y-1 hover:shadow-[6px_6px_0px_rgba(22,78,99,1)] active:translate-y-1 active:shadow-[0px_0px_0px_rgba(22,78,99,1)] transition-all focus:outline-none"
-          >
-            切换模式
-          </button>
-          <a
-            href="/"
-            class="px-5 py-2.5 text-sm font-black uppercase rounded-lg bg-white hover:bg-brand-50 text-brand-900 border-4 border-brand-900 shadow-[4px_4px_0px_rgba(22,78,99,1)] hover:-translate-y-1 hover:shadow-[6px_6px_0px_rgba(22,78,99,1)] active:translate-y-1 active:shadow-[0px_0px_0px_rgba(22,78,99,1)] transition-all focus:outline-none"
-            >返回首页</a
-          >
-          <a
-            href="/teacher"
-            class="px-5 py-2.5 text-sm font-black uppercase rounded-lg bg-[#22C55E] hover:bg-[#16A34A] text-white border-4 border-brand-900 shadow-[4px_4px_0px_rgba(22,78,99,1)] hover:-translate-y-1 hover:shadow-[6px_6px_0px_rgba(22,78,99,1)] active:translate-y-1 active:shadow-[0px_0px_0px_rgba(22,78,99,1)] transition-all focus:outline-none"
-            >教师后台</a
-          >
-        </div>
-        <div
-          class="connection-status px-4 py-1.5 text-sm font-black tracking-widest uppercase rounded-lg bg-[#FECACA] text-[#991B1B] border-4 border-[#991B1B] shadow-[4px_4px_0px_rgba(153,27,27,1)]"
-        >
-          断开连接
-        </div>
-      </div>
-    </header>
-
-    <main
-      id="displayContent"
-      class="flex-grow p-6 md:p-8 max-w-[1920px] w-full mx-auto flex flex-col"
-    >
-      <div class="flex-grow flex items-center justify-center">
-        <div
-          class="loading text-brand-600 flex items-center gap-3 text-lg font-bold"
-        >
-          <svg
-            class="animate-spin h-6 w-6"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle
-              class="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              stroke-width="4"
-            ></circle>
-            <path
-              class="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-            ></path>
-          </svg>
-          正在加载高精度数据...
-        </div>
-      </div>
-    </main>
-
+    <link rel="stylesheet" href="/css/common.css">
+    <link rel="stylesheet" href="/css/display.css">
+    <link rel="stylesheet" href="/css/menu.css">
+</head>
+<body>
+    <div class="display-container">
+        <header>
+            <div class="header-left">
+                <h1>班级积分排行榜</h1>
+                <div class="mode-indicator" id="modeIndicator">平时模式</div>
+            </div>
+            <div class="header-right">
+                <div class="header-controls">
+                    <button id="modeToggle" class="mode-toggle-btn">切换模式</button>
+                    <a href="/" class="home-link">返回首页</a>
+                    <a href="/teacher" class="teacher-link">教师管理</a>
+                </div>
+                <div class="connection-status disconnected">连接中...</div>
+            </div>
+        </header>
+        
+        <main id="displayContent">
+            <!-- 内容将通过JavaScript动态加载 -->
+            <div class="loading">正在加载数据...</div>
+        </main>
+    </div>
+    
     <script src="/js/common.js"></script>
     <script src="/js/menu.js"></script>
     <script src="/js/feedback.js"></script>
     <script src="/js/data-cache.js"></script>
     <script src="/js/sse-client.js"></script>
     <script src="/js/display.js"></script>
-  </body>
+</body>
 </html>
