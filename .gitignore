@@ -80,7 +80,9 @@ config/base.yaml
 .claude
 .kiro
 .rules
+.agent
 
+AGENTS.md
 
 logs/
 backups/
