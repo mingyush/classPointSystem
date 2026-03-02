@@ -1,8 +1,12 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const StudentService = require('../services/studentService');
+const TeacherService = require('../services/teacherService');
 const router = express.Router();
 
+// 创建服务实例
+const studentService = new StudentService();
+const teacherService = new TeacherService();
 // JWT密钥 (生产环境应使用环境变量)
 const JWT_SECRET = process.env.JWT_SECRET || 'classroom-points-system-secret-key';
 
@@ -27,7 +31,6 @@ router.post('/student-login', async (req, res) => {
         }
 
         // 验证学生是否存在
-        const studentService = new StudentService();
         const student = await studentService.validateStudentLogin(studentId.trim());
 
         if (!student) {
@@ -74,8 +77,6 @@ router.post('/student-login', async (req, res) => {
     }
 });
 
-// 引入教师服务
-const TeacherService = require('../services/teacherService');
 
 /**
  * 教师登录接口
@@ -105,7 +106,6 @@ router.post('/teacher-login', async (req, res) => {
         const trimmedTeacherId = teacherId.trim();
         
         // 使用教师服务验证登录
-        const teacherService = new TeacherService();
         const teacher = await teacherService.validateTeacherLogin(trimmedTeacherId, password);
         
         if (!teacher) {

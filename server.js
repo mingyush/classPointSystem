@@ -21,7 +21,7 @@
 const express = require('express');
 const path = require('path');
 const DataInitializer = require('./utils/dataInitializer');
-const { errorHandler, notFoundHandler, errorLogger, performanceMonitor } = require('./middleware/errorHandler');
+const { errorHandler, notFoundHandler, errorLogger, performanceMonitor, rateLimiter } = require('./middleware/errorHandler');
 
 // 创建Express应用实例
 const app = express();
@@ -99,6 +99,9 @@ const { router: sseRouter, broadcastSSEMessage } = require('./api/sse');
 sseService.setBroadcastFunction(broadcastSSEMessage);
 
 // API路由
+// 登录接口限流保护（每IP每分钟最多20次）
+app.use('/api/auth', rateLimiter(20, 60000));
+
 app.use('/api/auth', require('./api/auth'));
 app.use('/api/points', require('./api/points'));
 app.use('/api/students', require('./api/students'));

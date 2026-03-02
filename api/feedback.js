@@ -23,33 +23,33 @@ router.post('/', authenticateToken, asyncHandler(async (req, res) => {
 
     // 参数验证
     if (!title || typeof title !== 'string' || title.trim().length === 0) {
-        throw createError('INVALID_TITLE', '反馈标题不能为空');
+        throw createError('VALIDATION_ERROR', '反馈标题不能为空');
     }
 
     if (!content || typeof content !== 'string' || content.trim().length === 0) {
-        throw createError('INVALID_CONTENT', '反馈内容不能为空');
+        throw createError('VALIDATION_ERROR', '反馈内容不能为空');
     }
 
     if (title.length > 200) {
-        throw createError('TITLE_TOO_LONG', '反馈标题长度不能超过200字符');
+        throw createError('VALIDATION_ERROR', '反馈标题长度不能超过200字符');
     }
 
     if (content.length > 5000) {
-        throw createError('CONTENT_TOO_LONG', '反馈内容长度不能超过5000字符');
+        throw createError('VALIDATION_ERROR', '反馈内容长度不能超过5000字符');
     }
 
     const validCategories = ['bug', 'feature', 'suggestion', 'question', 'general'];
     if (!validCategories.includes(category)) {
-        throw createError('INVALID_CATEGORY', `反馈类别必须为: ${validCategories.join(', ')}`);
+        throw createError('VALIDATION_ERROR', `反馈类别必须为: ${validCategories.join(', ')}`);
     }
 
     const validPriorities = ['low', 'medium', 'high', 'urgent'];
     if (!validPriorities.includes(priority)) {
-        throw createError('INVALID_PRIORITY', `优先级必须为: ${validPriorities.join(', ')}`);
+        throw createError('VALIDATION_ERROR', `优先级必须为: ${validPriorities.join(', ')}`);
     }
 
     if (tags && !Array.isArray(tags)) {
-        throw createError('INVALID_TAGS', '标签必须为数组');
+        throw createError('VALIDATION_ERROR', '标签必须为数组');
     }
 
     // 创建反馈
@@ -95,11 +95,11 @@ router.get('/', authenticateToken, requireTeacher, asyncHandler(async (req, res)
     const limitNum = parseInt(limit) || 20;
 
     if (pageNum < 1) {
-        throw createError('INVALID_PAGE', '页码必须大于0');
+        throw createError('VALIDATION_ERROR', '页码必须大于0');
     }
 
     if (limitNum < 1 || limitNum > 100) {
-        throw createError('INVALID_LIMIT', '每页数量必须在1-100之间');
+        throw createError('VALIDATION_ERROR', '每页数量必须在1-100之间');
     }
 
     // 构建过滤条件
@@ -130,6 +130,20 @@ router.get('/', authenticateToken, requireTeacher, asyncHandler(async (req, res)
 }));
 
 /**
+ * 获取反馈统计信息
+ * GET /api/feedback/stats
+ */
+router.get('/stats', authenticateToken, requireTeacher, asyncHandler(async (req, res) => {
+    const stats = await feedbackService.getFeedbackStats();
+
+    res.json({
+        success: true,
+        message: '获取反馈统计信息成功',
+        data: stats
+    });
+}));
+
+/**
  * 获取单个反馈详情
  * GET /api/feedback/:id
  */
@@ -138,7 +152,7 @@ router.get('/:id', authenticateToken, requireTeacher, asyncHandler(async (req, r
 
     const feedback = await feedbackService.getFeedbackById(id);
     if (!feedback) {
-        throw createError('FEEDBACK_NOT_FOUND', '反馈不存在');
+        throw createError('RESOURCE_NOT_FOUND', '反馈不存在');
     }
 
     res.json({
@@ -160,19 +174,19 @@ router.put('/:id', authenticateToken, requireTeacher, asyncHandler(async (req, r
     if (status) {
         const validStatuses = ['open', 'in-progress', 'resolved', 'closed'];
         if (!validStatuses.includes(status)) {
-            throw createError('INVALID_STATUS', `状态必须为: ${validStatuses.join(', ')}`);
+            throw createError('VALIDATION_ERROR', `状态必须为: ${validStatuses.join(', ')}`);
         }
     }
 
     if (priority) {
         const validPriorities = ['low', 'medium', 'high', 'urgent'];
         if (!validPriorities.includes(priority)) {
-            throw createError('INVALID_PRIORITY', `优先级必须为: ${validPriorities.join(', ')}`);
+            throw createError('VALIDATION_ERROR', `优先级必须为: ${validPriorities.join(', ')}`);
         }
     }
 
     if (tags && !Array.isArray(tags)) {
-        throw createError('INVALID_TAGS', '标签必须为数组');
+        throw createError('VALIDATION_ERROR', '标签必须为数组');
     }
 
     // 构建更新数据
@@ -199,26 +213,12 @@ router.delete('/:id', authenticateToken, requireTeacher, asyncHandler(async (req
 
     const deleted = await feedbackService.deleteFeedback(id);
     if (!deleted) {
-        throw createError('FEEDBACK_NOT_FOUND', '反馈不存在');
+        throw createError('RESOURCE_NOT_FOUND', '反馈不存在');
     }
 
     res.json({
         success: true,
         message: '反馈删除成功'
-    });
-}));
-
-/**
- * 获取反馈统计信息
- * GET /api/feedback/stats
- */
-router.get('/stats', authenticateToken, requireTeacher, asyncHandler(async (req, res) => {
-    const stats = await feedbackService.getFeedbackStats();
-
-    res.json({
-        success: true,
-        message: '获取反馈统计信息成功',
-        data: stats
     });
 }));
 

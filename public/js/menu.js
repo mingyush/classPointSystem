@@ -281,9 +281,9 @@ class MenuSystem {
                 showMessage('已退出登录', 'info');
             }
             
-            // 重新加载页面
+            // 跳转到首页
             setTimeout(() => {
-                window.location.reload();
+                window.location.href = '/';
             }, 1000);
         }
     }

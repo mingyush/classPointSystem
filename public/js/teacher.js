@@ -219,14 +219,19 @@ function renderTeacherContent() {
 
     container.innerHTML = `
         <div class="management-tabs">
-            <button class="tab-button active" onclick="switchTab('points')">积分管理</button>
-            <button class="tab-button" onclick="switchTab('products')">商品管理</button>
-            <button class="tab-button" onclick="switchTab('orders')">预约管理</button>
-            <button class="tab-button" onclick="switchTab('system')">系统设置</button>
+            <button class="tab-button active" onclick="switchTab(event, 'points')">积分管理</button>
+            <button class="tab-button" onclick="switchTab(event, 'students')">学生管理</button>
+            <button class="tab-button" onclick="switchTab(event, 'products')">商品管理</button>
+            <button class="tab-button" onclick="switchTab(event, 'orders')">预约管理</button>
+            <button class="tab-button" onclick="switchTab(event, 'system')">系统设置</button>
         </div>
         
         <div id="pointsTab" class="tab-content active">
             ${renderPointsManagement()}
+        </div>
+
+        <div id="studentsTab" class="tab-content">
+            ${renderStudentsManagement()}
         </div>
         
         <div id="productsTab" class="tab-content">
@@ -247,23 +252,31 @@ function renderTeacherContent() {
 }
 
 // 切换标签页
-function switchTab(tabName) {
+function switchTab(evt, tabName) {
+    // 处理未传 event 的兼容（如果还有旧代码调用）
+    const targetEl = evt ? evt.target : document.querySelector(`button[onclick="switchTab(event, '${tabName}')"]`);
+
     // 更新按钮状态
     document.querySelectorAll('.tab-button').forEach(btn => {
         btn.classList.remove('active');
     });
-    event.target.classList.add('active');
+    if (targetEl) targetEl.classList.add('active');
 
     // 更新内容显示
     document.querySelectorAll('.tab-content').forEach(content => {
         content.classList.remove('active');
     });
-    document.getElementById(`${tabName}Tab`).classList.add('active');
+    
+    const tabEl = document.getElementById(`${tabName}Tab`);
+    if (tabEl) tabEl.classList.add('active');
 
     // 根据标签页执行特定初始化
     switch (tabName) {
         case 'points':
             initPointsManagement();
+            break;
+        case 'students':
+            initStudentsManagement();
             break;
         case 'products':
             initProductsManagement();
@@ -619,7 +632,8 @@ function selectStudent(studentId) {
     document.querySelectorAll('.student-item').forEach(item => {
         item.classList.remove('selected');
     });
-    event.currentTarget.classList.add('selected');
+    const targetItem = document.querySelector(`.student-item[onclick="selectStudent('${studentId}')"]`);
+    if (targetItem) targetItem.classList.add('selected');
 
     // 显示学生信息和操作表单
     const infoContainer = document.getElementById('selectedStudentInfo');
@@ -677,10 +691,11 @@ async function adjustPoints(isAdd) {
         });
 
         // 更新本地学生数据
-        selectedStudent.balance = response.newBalance;
+        const newBalance = response.data ? response.data.newBalance : response.newBalance;
+        selectedStudent.balance = newBalance;
         const studentIndex = students.findIndex(s => s.id === selectedStudent.id);
         if (studentIndex !== -1) {
-            students[studentIndex].balance = response.newBalance;
+            students[studentIndex].balance = newBalance;
         }
 
         // 刷新显示
@@ -1579,8 +1594,7 @@ function formatFileSize(bytes) {
 
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
-//
-显示需要登录的状态界面
+// 显示需要登录的状态界面
 function showLoginRequiredState() {
     const container = document.getElementById('teacherContent');
     if (container) {
@@ -1663,4 +1677,180 @@ function enableAllControls() {
         element.disabled = false;
         element.style.opacity = '1';
     });
+}
+
+// ====== 学生管理 ======
+
+function initStudentsManagement() {
+    renderStudentsList();
+}
+
+function renderStudentsManagement() {
+    return `
+        <h2>学生管理</h2>
+        <div class="product-management">
+            <div class="product-form">
+                <h3>添加/编辑学生</h3>
+                <form id="studentForm" onsubmit="saveStudent(event)">
+                    <input type="hidden" id="editStudentId">
+                    
+                    <div class="form-group">
+                        <label>学号:</label>
+                        <input type="text" id="studentId" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>姓名:</label>
+                        <input type="text" id="studentName" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>班级:</label>
+                        <input type="text" id="studentClass" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>初始积分:</label>
+                        <input type="number" id="studentBalance" min="0" value="0" required>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" id="saveStudentBtn">保存学生</button>
+                        <button type="button" onclick="resetStudentForm()">重置</button>
+                    </div>
+                </form>
+            </div>
+            
+            <div class="product-list">
+                <h3>学生列表</h3>
+                <div id="studentsManagementList">
+                    <!-- 学生列表将在这里动态生成 -->
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderStudentsList() {
+    const container = document.getElementById('studentsManagementList');
+    if (!container) return;
+
+    if (students.length === 0) {
+        container.innerHTML = '<div class="no-data">暂无学生数据</div>';
+        return;
+    }
+
+    container.innerHTML = students.map(student => `
+        <div class="product-item">
+            <div class="product-info">
+                <div class="product-name">${student.name} (${student.id})</div>
+                <div class="product-details">
+                    班级: ${student.class || '-'} | 积分: ${student.balance || 0}分
+                </div>
+            </div>
+            <div class="product-actions">
+                <button class="edit-btn" onclick="editStudent('${student.id}')">编辑</button>
+                <button class="delete-btn" onclick="deleteStudent('${student.id}')">删除</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function saveStudent(event) {
+    event.preventDefault();
+
+    const editId = document.getElementById('editStudentId').value;
+    const id = document.getElementById('studentId').value.trim();
+    const name = document.getElementById('studentName').value.trim();
+    const className = document.getElementById('studentClass').value.trim();
+    const balance = parseInt(document.getElementById('studentBalance').value) || 0;
+
+    if (!id || !name || !className || balance < 0) {
+        showMessage('请填写有效的学生信息', 'warning');
+        return;
+    }
+
+    try {
+        const isEdit = !!editId;
+        const endpoint = isEdit ? `/api/students/${id}` : '/api/students';
+        const method = isEdit ? 'PUT' : 'POST';
+
+        const response = await apiRequest(endpoint, {
+            method: method,
+            body: JSON.stringify({
+                id: id,
+                name: name,
+                class: className,
+                balance: balance
+            })
+        });
+
+        const studentData = response.data?.student || response.student;
+        if (isEdit) {
+            const index = students.findIndex(s => s.id === id);
+            if (index !== -1) {
+                // preserve balance if not explicitly updated via API return
+                students[index] = { ...students[index], ...studentData };
+            }
+        } else {
+            students.push(studentData);
+        }
+
+        renderStudentsList();
+        resetStudentForm();
+        if (document.getElementById('studentList')) renderStudentList();
+
+        showMessage(`学生${isEdit ? '更新' : '添加'}成功`, 'success');
+
+    } catch (error) {
+        console.error('保存学生失败:', error);
+        showMessage('保存学生失败: ' + (error.message || ''), 'error');
+    }
+}
+
+function editStudent(studentId) {
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+
+    document.getElementById('editStudentId').value = student.id;
+    document.getElementById('studentId').value = student.id;
+    document.getElementById('studentId').disabled = true;
+    document.getElementById('studentName').value = student.name;
+    document.getElementById('studentClass').value = student.class || '';
+    document.getElementById('studentBalance').value = student.balance || 0;
+    if (student.balance !== undefined) {
+        document.getElementById('studentBalance').disabled = true; // prevent editing balance directly when editing student
+    }
+
+    document.getElementById('saveStudentBtn').textContent = '更新学生';
+}
+
+async function deleteStudent(studentId) {
+    if (!confirm('确定要删除这个学生吗？所有积分记录也将被删除！')) return;
+
+    try {
+        await apiRequest(`/api/students/${studentId}`, {
+            method: 'DELETE'
+        });
+
+        students = students.filter(s => s.id !== studentId);
+
+        renderStudentsList();
+        if (document.getElementById('studentList')) renderStudentList();
+
+        showMessage('学生删除成功', 'success');
+
+    } catch (error) {
+        console.error('删除学生失败:', error);
+        showMessage('删除学生失败，请重试', 'error');
+    }
+}
+
+function resetStudentForm() {
+    const form = document.getElementById('studentForm');
+    if (form) form.reset();
+    document.getElementById('editStudentId').value = '';
+    document.getElementById('studentId').disabled = false;
+    document.getElementById('studentBalance').disabled = false;
+    document.getElementById('saveStudentBtn').textContent = '保存学生';
 }

@@ -3,6 +3,8 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
 const BackupService = require('../services/backupService');
+const { authenticateToken, requireTeacher } = require('./auth');
+const { asyncHandler, createError, operationLogger } = require('../middleware/errorHandler');
 
 const router = express.Router();
 const backupService = new BackupService();
@@ -29,8 +31,9 @@ const upload = multer({
 /**
  * 创建完整系统备份
  */
-router.post('/create', async (req, res) => {
-    try {
+router.post('/create', authenticateToken, requireTeacher,
+    operationLogger('创建系统备份'),
+    asyncHandler(async (req, res) => {
         console.log('开始创建系统备份...');
         const backupPath = await backupService.createFullBackup();
         
@@ -40,22 +43,14 @@ router.post('/create', async (req, res) => {
             backupPath: path.basename(backupPath),
             timestamp: new Date().toISOString()
         });
-        
-    } catch (error) {
-        console.error('创建备份失败:', error);
-        res.status(500).json({
-            success: false,
-            message: '创建备份失败',
-            error: error.message
-        });
-    }
-});
+    })
+);
 
 /**
  * 获取备份文件列表
  */
-router.get('/list', async (req, res) => {
-    try {
+router.get('/list', authenticateToken, requireTeacher,
+    asyncHandler(async (req, res) => {
         const backupList = await backupService.getBackupList();
         
         res.json({
@@ -68,22 +63,14 @@ router.get('/list', async (req, res) => {
                 sizeFormatted: formatFileSize(backup.size)
             }))
         });
-        
-    } catch (error) {
-        console.error('获取备份列表失败:', error);
-        res.status(500).json({
-            success: false,
-            message: '获取备份列表失败',
-            error: error.message
-        });
-    }
-});
+    })
+);
 
 /**
  * 下载备份文件
  */
-router.get('/download/:filename', async (req, res) => {
-    try {
+router.get('/download/:filename', authenticateToken, requireTeacher,
+    asyncHandler(async (req, res) => {
         const { filename } = req.params;
         const filePath = path.join('data', 'exports', filename);
         
@@ -91,10 +78,7 @@ router.get('/download/:filename', async (req, res) => {
         try {
             await fs.access(filePath);
         } catch {
-            return res.status(404).json({
-                success: false,
-                message: '备份文件不存在'
-            });
+            throw createError('RESOURCE_NOT_FOUND', '备份文件不存在');
         }
         
         // 设置下载头
@@ -103,49 +87,40 @@ router.get('/download/:filename', async (req, res) => {
         
         // 发送文件
         res.sendFile(path.resolve(filePath));
+    })
+);
+
+/**
+ * 获取数据统计信息
+ */
+router.get('/statistics', authenticateToken, requireTeacher,
+    asyncHandler(async (req, res) => {
+        const stats = await backupService.getDataStatistics();
         
-    } catch (error) {
-        console.error('下载备份文件失败:', error);
-        res.status(500).json({
-            success: false,
-            message: '下载备份文件失败',
-            error: error.message
+        res.json({
+            success: true,
+            statistics: stats
         });
-    }
-});
+    })
+);
 
 /**
  * 从备份文件恢复系统
  */
-router.post('/restore', upload.single('backupFile'), async (req, res) => {
-    try {
+router.post('/restore', authenticateToken, requireTeacher, upload.single('backupFile'),
+    operationLogger('恢复系统备份'),
+    asyncHandler(async (req, res) => {
         if (!req.file) {
-            return res.status(400).json({
-                success: false,
-                message: '请选择备份文件'
-            });
+            throw createError('VALIDATION_ERROR', '请选择备份文件');
         }
         
         console.log('开始恢复系统...', req.file.originalname);
         
-        // 恢复系统
-        await backupService.restoreFromBackup(req.file.path);
-        
-        // 清理上传的临时文件
-        await fs.unlink(req.file.path);
-        
-        res.json({
-            success: true,
-            message: '系统恢复成功',
-            filename: req.file.originalname,
-            timestamp: new Date().toISOString()
-        });
-        
-    } catch (error) {
-        console.error('系统恢复失败:', error);
-        
-        // 清理上传的临时文件
-        if (req.file) {
+        try {
+            // 恢复系统
+            await backupService.restoreFromBackup(req.file.path);
+        } finally {
+            // 清理上传的临时文件
             try {
                 await fs.unlink(req.file.path);
             } catch (cleanupError) {
@@ -153,58 +128,47 @@ router.post('/restore', upload.single('backupFile'), async (req, res) => {
             }
         }
         
-        res.status(500).json({
-            success: false,
-            message: '系统恢复失败',
-            error: error.message
+        res.json({
+            success: true,
+            message: '系统恢复成功',
+            filename: req.file.originalname,
+            timestamp: new Date().toISOString()
         });
-    }
-});
+    })
+);
 
 /**
  * 删除备份文件
  */
-router.delete('/:filename', async (req, res) => {
-    try {
+router.delete('/:filename', authenticateToken, requireTeacher,
+    operationLogger('删除备份文件'),
+    asyncHandler(async (req, res) => {
         const { filename } = req.params;
         const success = await backupService.deleteBackup(filename);
         
-        if (success) {
-            res.json({
-                success: true,
-                message: '备份文件删除成功',
-                filename
-            });
-        } else {
-            res.status(404).json({
-                success: false,
-                message: '备份文件不存在或删除失败'
-            });
+        if (!success) {
+            throw createError('RESOURCE_NOT_FOUND', '备份文件不存在或删除失败');
         }
         
-    } catch (error) {
-        console.error('删除备份文件失败:', error);
-        res.status(500).json({
-            success: false,
-            message: '删除备份文件失败',
-            error: error.message
+        res.json({
+            success: true,
+            message: '备份文件删除成功',
+            filename
         });
-    }
-});
+    })
+);
 
 /**
  * 导出单个数据文件
  */
-router.post('/export/:dataType', async (req, res) => {
-    try {
+router.post('/export/:dataType', authenticateToken, requireTeacher,
+    operationLogger('导出数据'),
+    asyncHandler(async (req, res) => {
         const { dataType } = req.params;
         const validTypes = ['students', 'points', 'products', 'orders', 'config'];
         
         if (!validTypes.includes(dataType)) {
-            return res.status(400).json({
-                success: false,
-                message: '无效的数据类型'
-            });
+            throw createError('VALIDATION_ERROR', '无效的数据类型');
         }
         
         const exportPath = await backupService.exportDataFile(dataType);
@@ -215,59 +179,33 @@ router.post('/export/:dataType', async (req, res) => {
             filename: path.basename(exportPath),
             dataType
         });
-        
-    } catch (error) {
-        console.error('导出数据失败:', error);
-        res.status(500).json({
-            success: false,
-            message: '导出数据失败',
-            error: error.message
-        });
-    }
-});
+    })
+);
 
 /**
  * 导入单个数据文件
  */
-router.post('/import/:dataType', upload.single('dataFile'), async (req, res) => {
-    try {
+router.post('/import/:dataType', authenticateToken, requireTeacher, upload.single('dataFile'),
+    operationLogger('导入数据'),
+    asyncHandler(async (req, res) => {
         const { dataType } = req.params;
         const validTypes = ['students', 'points', 'products', 'orders', 'config'];
         
         if (!validTypes.includes(dataType)) {
-            return res.status(400).json({
-                success: false,
-                message: '无效的数据类型'
-            });
+            throw createError('VALIDATION_ERROR', '无效的数据类型');
         }
         
         if (!req.file) {
-            return res.status(400).json({
-                success: false,
-                message: '请选择数据文件'
-            });
+            throw createError('VALIDATION_ERROR', '请选择数据文件');
         }
         
         console.log(`开始导入${dataType}数据...`, req.file.originalname);
         
-        // 导入数据
-        await backupService.importDataFile(dataType, req.file.path);
-        
-        // 清理上传的临时文件
-        await fs.unlink(req.file.path);
-        
-        res.json({
-            success: true,
-            message: `${dataType}数据导入成功`,
-            filename: req.file.originalname,
-            dataType
-        });
-        
-    } catch (error) {
-        console.error('导入数据失败:', error);
-        
-        // 清理上传的临时文件
-        if (req.file) {
+        try {
+            // 导入数据
+            await backupService.importDataFile(dataType, req.file.path);
+        } finally {
+            // 清理上传的临时文件
             try {
                 await fs.unlink(req.file.path);
             } catch (cleanupError) {
@@ -275,19 +213,21 @@ router.post('/import/:dataType', upload.single('dataFile'), async (req, res) => 
             }
         }
         
-        res.status(500).json({
-            success: false,
-            message: '导入数据失败',
-            error: error.message
+        res.json({
+            success: true,
+            message: `${dataType}数据导入成功`,
+            filename: req.file.originalname,
+            dataType
         });
-    }
-});
+    })
+);
 
 /**
  * 清理旧的备份文件
  */
-router.post('/cleanup', async (req, res) => {
-    try {
+router.post('/cleanup', authenticateToken, requireTeacher,
+    operationLogger('清理旧备份'),
+    asyncHandler(async (req, res) => {
         const { keepCount = 10 } = req.body;
         const deletedCount = await backupService.cleanOldExports(keepCount);
         
@@ -296,38 +236,8 @@ router.post('/cleanup', async (req, res) => {
             message: `清理完成，删除了${deletedCount}个旧备份文件`,
             deletedCount
         });
-        
-    } catch (error) {
-        console.error('清理备份文件失败:', error);
-        res.status(500).json({
-            success: false,
-            message: '清理备份文件失败',
-            error: error.message
-        });
-    }
-});
-
-/**
- * 获取数据统计信息
- */
-router.get('/statistics', async (req, res) => {
-    try {
-        const stats = await backupService.getDataStatistics();
-        
-        res.json({
-            success: true,
-            statistics: stats
-        });
-        
-    } catch (error) {
-        console.error('获取数据统计失败:', error);
-        res.status(500).json({
-            success: false,
-            message: '获取数据统计失败',
-            error: error.message
-        });
-    }
-});
+    })
+);
 
 /**
  * 格式化文件大小
