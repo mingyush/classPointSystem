@@ -186,23 +186,32 @@ async function loadNormalModeContent(container) {
         const currentTime = new Date().toLocaleString('zh-CN');
         
         container.innerHTML = `
-            <div class="rankings-header">
-                <h2>积分排行榜${isOfflineData ? ' (离线数据)' : ''}</h2>
-                <div class="last-update">最后更新: ${currentTime}</div>
-                ${isOfflineData ? '<div class="offline-indicator">网络连接异常，显示缓存数据</div>' : ''}
+            <div class="text-center mb-10">
+                <h2 class="text-3xl md:text-4xl font-display font-bold text-brand-800 mb-4">积分排行榜${isOfflineData ? ' <span class="text-orange-500 text-xl font-normal">(离线数据)</span>' : ''}</h2>
+                <div class="last-update inline-flex items-center px-5 py-2 rounded-full bg-white border-2 border-brand-200 text-sm font-bold text-brand-500 shadow-sm">最后更新: ${currentTime}</div>
+                ${isOfflineData ? '<div class="mt-4 inline-block px-4 py-2 rounded-xl bg-orange-100 border-2 border-orange-200 text-orange-700 font-bold text-sm shadow-sm">网络连接异常，显示缓存数据</div>' : ''}
             </div>
-            <div class="rankings-container">
-                <div class="ranking-section">
-                    <h2>总积分排行</h2>
-                    <ul class="ranking-list" id="totalRanking"></ul>
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+                <div class="clay-panel p-6 flex flex-col h-full bg-[#ECFEFF]">
+                    <h2 class="text-2xl font-display font-bold text-brand-900 mb-6 flex items-center justify-center gap-3 border-b-4 border-brand-900 pb-4">
+                        <svg class="w-8 h-8 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"></path></svg>
+                        综合积分总榜
+                    </h2>
+                    <ul class="ranking-list flex-grow flex flex-col gap-4" id="totalRanking"></ul>
                 </div>
-                <div class="ranking-section">
-                    <h2>日榜排行</h2>
-                    <ul class="ranking-list" id="dailyRanking"></ul>
+                <div class="clay-panel p-6 flex flex-col h-full bg-[#ECFEFF]">
+                    <h2 class="text-2xl font-display font-bold text-brand-900 mb-6 flex items-center justify-center gap-3 border-b-4 border-brand-900 pb-4">
+                        <svg class="w-8 h-8 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        今日成长之星
+                    </h2>
+                    <ul class="ranking-list flex-grow flex flex-col gap-4" id="dailyRanking"></ul>
                 </div>
-                <div class="ranking-section">
-                    <h2>周榜排行</h2>
-                    <ul class="ranking-list" id="weeklyRanking"></ul>
+                <div class="clay-panel p-6 flex flex-col h-full bg-[#ECFEFF]">
+                    <h2 class="text-2xl font-display font-bold text-brand-900 mb-6 flex items-center justify-center gap-3 border-b-4 border-brand-900 pb-4">
+                        <svg class="w-8 h-8 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        本周成长之星
+                    </h2>
+                    <ul class="ranking-list flex-grow flex flex-col gap-4" id="weeklyRanking"></ul>
                 </div>
             </div>
         `;
@@ -252,16 +261,20 @@ async function loadClassModeContent(container) {
         const isOfflineData = window.dataCacheService.getErrorState('students_list') !== null;
         
         container.innerHTML = `
-            <div class="class-mode">
-                <div class="class-mode-header">
-                    <h2>学生积分操作${isOfflineData ? ' (离线模式)' : ''}</h2>
-                    <div class="operation-tips">
-                        <span>${isOfflineData ? '网络连接异常，显示缓存数据' : '提示: 点击按钮为学生加分或减分'}</span>
-                        <button onclick="refreshClassMode()" class="refresh-btn">${isOfflineData ? '重试连接' : '刷新'}</button>
-                    </div>
+            <div class="flex flex-col md:flex-row justify-between items-center gap-6 mb-8">
+                <div>
+                    <h2 class="text-3xl font-display font-bold text-brand-800 mb-2 flex items-center gap-3">
+                        <svg class="w-8 h-8 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                        学生积分操作${isOfflineData ? ' <span class="text-orange-500 text-lg font-normal">(离线模式)</span>' : ''}
+                    </h2>
+                    <p class="text-brand-600 font-bold">${isOfflineData ? '网络连接异常，显示缓存数据' : '点击下方卡片中的按钮实时为学生操作积分'}</p>
                 </div>
-                <div class="student-grid" id="studentGrid"></div>
+                <button onclick="refreshClassMode()" class="px-5 py-2.5 rounded-xl bg-white hover:bg-brand-50 border-2 border-brand-200 text-brand-700 font-bold shadow-sm transition-colors flex items-center gap-2 focus:ring-2 focus:ring-brand-300 outline-none">
+                    <svg class="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    ${isOfflineData ? '重试连接' : '刷新数据'}
+                </button>
             </div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-6" id="studentGrid"></div>
         `;
         
         const students = response.students || response.data?.students || [];
@@ -305,20 +318,47 @@ function renderRanking(containerId, data) {
         const isTop3 = rank <= 3;
         const points = item.points || item.balance || 0;
         
-        // 添加排名变化指示器（如果有的话）
+        // 添加排名变化指示器
+        // 添加排名变化指示器
         const changeIndicator = item.change ? 
-            `<span class="rank-change ${item.change > 0 ? 'up' : 'down'}">
+            `<span class="ml-2 px-2 py-0.5 rounded-lg text-xs font-bold border-2 ${item.change > 0 ? 'bg-accent-50 border-accent-200 text-accent-600' : 'bg-red-50 border-red-200 text-red-600'}">
                 ${item.change > 0 ? '↑' : '↓'}${Math.abs(item.change)}
             </span>` : '';
         
+        let rankStyle = '';
+        let numberColor = 'text-brand-900';
+        let badgeStyle = '';
+
+        if (rank === 1) {
+            rankStyle = 'bg-[#FDE047] border-4 border-[#854D0E] shadow-[4px_4px_0px_#854D0E]'; // Bright yellow, dark orange shadow
+            badgeStyle = 'bg-[#854D0E] text-[#FDE047]';
+        } else if (rank === 2) {
+            rankStyle = 'bg-[#E2E8F0] border-4 border-[#475569] shadow-[4px_4px_0px_#475569]'; // Slate silver
+            badgeStyle = 'bg-[#475569] text-white';
+        } else if (rank === 3) {
+            rankStyle = 'bg-[#FDBA74] border-4 border-[#9A3412] shadow-[4px_4px_0px_#9A3412]'; // Bronze orange
+            badgeStyle = 'bg-[#9A3412] text-white';
+        } else {
+            rankStyle = 'bg-white border-4 border-brand-900 shadow-[4px_4px_0px_rgba(22,78,99,1)] hover:-translate-y-1 hover:shadow-[6px_6px_0px_rgba(22,78,99,1)] hover:bg-brand-50'; // Default cyan block style
+            numberColor = 'text-brand-900';
+            badgeStyle = 'bg-brand-200 text-brand-900 border-2 border-brand-900';
+        }
+
         return `
-            <li class="ranking-item ${isTop3 ? 'top-3' : ''}" data-student-id="${item.id || item.studentId}">
-                <div class="student-info">
-                    <span class="rank-number">${rank}</span>
-                    <span class="student-name">${item.name || item.studentName}(${item.id || item.studentId})</span>
-                    ${changeIndicator}
+            <li class="ranking-item group flex items-center justify-between p-4 rounded-xl transition-all duration-300 cursor-default ${rankStyle}" data-student-id="${item.id || item.studentId}">
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center justify-center w-12 h-12 rounded-lg font-display text-2xl font-bold ${rank <=3 ? badgeStyle : badgeStyle}">
+                        ${rank}
+                    </div>
+                    <div class="flex flex-col">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xl font-bold text-brand-900 group-hover:text-brand-700 transition-colors">${item.name || item.studentName}</span>
+                            ${changeIndicator}
+                        </div>
+                        <span class="text-sm font-bold opacity-80 uppercase tracking-widest text-brand-900">ID: ${item.id || item.studentId}</span>
+                    </div>
                 </div>
-                <span class="points ${points < 0 ? 'negative' : ''}">${points}分</span>
+                <span class="font-display text-4xl font-extrabold ${points < 0 ? 'text-red-600' : numberColor}" id="point_${containerId}_${item.id || item.studentId}">${points}</span>
             </li>
         `;
     }).join('');
@@ -352,26 +392,31 @@ function renderStudentGrid(students) {
     
     container.innerHTML = sortedStudents.map(student => {
         const balance = student.balance || 0;
-        const balanceClass = balance < 0 ? 'negative' : balance > 50 ? 'high' : '';
+        const balanceClass = balance < 0 ? 'text-red-600' : balance > 50 ? 'text-brand-500' : 'text-brand-900';
         
         return `
-            <div class="student-card" data-student-id="${student.id}">
-                <h3>${student.name}</h3>
-                <div class="student-id">${student.id}</div>
-                <div class="balance ${balanceClass}">${balance}分</div>
-                <div class="point-controls">
-                    <div class="control-group">
-                        <button onclick="adjustPoints('${student.id}', 1)" class="add-btn small">+1</button>
-                        <button onclick="adjustPoints('${student.id}', 5)" class="add-btn">+5</button>
-                        <button onclick="adjustPoints('${student.id}', 10)" class="add-btn">+10</button>
+            <div class="student-card group clay-panel hover:bg-brand-50 flex flex-col p-5 cursor-pointer relative" data-student-id="${student.id}">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="flex flex-col">
+                        <h3 class="text-2xl font-bold font-display text-brand-900">${student.name}</h3>
+                        <div class="inline-block px-2 py-1 mt-1 bg-brand-200 border-2 border-brand-900 text-xs font-black rounded-md w-max text-brand-900 uppercase">#${student.id}</div>
                     </div>
-                    <div class="control-group">
-                        <button onclick="adjustPoints('${student.id}', -1)" class="subtract-btn small">-1</button>
-                        <button onclick="adjustPoints('${student.id}', -5)" class="subtract-btn">-5</button>
-                        <button onclick="adjustPoints('${student.id}', -10)" class="subtract-btn">-10</button>
+                    <div class="balance text-4xl font-display font-black tracking-tight ${balanceClass}" id="balance_${student.id}">${balance}</div>
+                </div>
+                
+                <div class="mt-auto pt-4 border-t-4 border-brand-100 space-y-3">
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="adjustPoints('${student.id}', 1); event.stopPropagation();" class="py-2 rounded-lg bg-[#4ADE80] hover:bg-[#22C55E] text-brand-950 border-4 border-brand-900 transition-colors font-black text-sm shadow-[2px_2px_0px_rgba(22,78,99,1)] active:translate-y-1 active:shadow-none disabled:opacity-50 disabled:cursor-not-allowed">+1</button>
+                        <button onclick="adjustPoints('${student.id}', 5); event.stopPropagation();" class="py-2 rounded-lg bg-[#4ADE80] hover:bg-[#22C55E] text-brand-950 border-4 border-brand-900 transition-colors font-black text-sm shadow-[2px_2px_0px_rgba(22,78,99,1)] active:translate-y-1 active:shadow-none disabled:opacity-50 disabled:cursor-not-allowed">+5</button>
+                        <button onclick="adjustPoints('${student.id}', 10); event.stopPropagation();" class="py-2 rounded-lg bg-[#22C55E] hover:bg-[#16A34A] text-white border-4 border-brand-900 transition-colors font-black text-sm shadow-[2px_2px_0px_rgba(22,78,99,1)] active:translate-y-1 active:shadow-none disabled:opacity-50 disabled:cursor-not-allowed">+10</button>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="adjustPoints('${student.id}', -1); event.stopPropagation();" class="py-1.5 rounded-lg bg-[#FCA5A5] hover:bg-[#F87171] text-brand-900 border-4 border-brand-900 transition-colors font-black text-sm shadow-[2px_2px_0px_rgba(22,78,99,1)] active:translate-y-1 active:shadow-none disabled:opacity-50 disabled:cursor-not-allowed">-1</button>
+                        <button onclick="adjustPoints('${student.id}', -5); event.stopPropagation();" class="py-1.5 rounded-lg bg-[#FCA5A5] hover:bg-[#F87171] text-brand-900 border-4 border-brand-900 transition-colors font-black text-sm shadow-[2px_2px_0px_rgba(22,78,99,1)] active:translate-y-1 active:shadow-none disabled:opacity-50 disabled:cursor-not-allowed">-5</button>
+                        <button onclick="adjustPoints('${student.id}', -10); event.stopPropagation();" class="py-1.5 rounded-lg bg-[#F87171] hover:bg-[#EF4444] text-white border-4 border-brand-900 transition-colors font-black text-sm shadow-[2px_2px_0px_rgba(22,78,99,1)] active:translate-y-1 active:shadow-none disabled:opacity-50 disabled:cursor-not-allowed">-10</button>
                     </div>
                 </div>
-                <div class="last-operation" id="lastOp_${student.id}"></div>
+                <div class="last-operation h-6 flex items-center justify-center mt-3 text-sm font-mono font-bold bg-white rounded" id="lastOp_${student.id}"></div>
             </div>
         `;
     }).join('');
@@ -496,43 +541,23 @@ async function toggleDisplayMode() {
     const newMode = currentMode === 'class' ? 'normal' : 'class';
     
     try {
-        // 检查是否有教师权限
-        const token = storage.get('teacherToken');
-        if (!token) {
-            // 如果没有token，显示登录弹窗
-            if (typeof showTeacherLogin === 'function') {
-                showTeacherLogin();
-                return;
-            } else {
-                showMessage('需要教师权限才能切换模式', 'warning');
-                return;
-            }
-        }
-        
-        // 调用API切换模式
-        const response = await fetch('/api/config/mode', {
+        // 调用API切换模式 (apiRequest会自动处理401)
+        const response = await apiRequest('/api/config/mode', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
             body: JSON.stringify({ mode: newMode })
         });
         
-        const data = await response.json();
-        
-        if (response.ok) {
-            currentMode = newMode;
-            updateModeDisplay();
-            await loadDisplayContent();
-            showMessage(`已切换到${newMode === 'class' ? '上课' : '平时'}模式`, 'success');
-        } else {
-            throw new Error(data.message || '模式切换失败');
-        }
+        currentMode = response.data?.mode || newMode;
+        updateModeDisplay();
+        await loadDisplayContent();
+        showMessage(`已切换到${currentMode === 'class' ? '上课' : '平时'}模式`, 'success');
         
     } catch (error) {
         console.error('切换模式失败:', error);
-        showMessage('切换模式失败: ' + error.message, 'error');
+        // apiRequest 会显示它自己的错误消息或打开登录框，这里我们做个后备或者日志
+        if (error.message !== '请求失败') {
+            showMessage('切换模式失败: ' + error.message, 'error');
+        }
     }
 }
 

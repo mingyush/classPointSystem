@@ -30,8 +30,14 @@ async function apiRequest(url, options = {}) {
                 storage.remove('currentTeacher');
                 storage.remove('studentToken');
                 storage.remove('currentStudent');
-                if (window.location.pathname.includes('/teacher')) {
-                    showTeacherLogin();
+                if (window.location.pathname.includes('/teacher') || window.location.pathname.includes('/display')) {
+                    if (typeof showTeacherLogin === 'function') {
+                        showTeacherLogin();
+                    } else {
+                        // 如果在display页，可能是因为common.js在加载但还没完全准备好showTeacherLogin，
+                        // 这里尝试动态加载登录界面或者直接重定向
+                        showMessage('需要教师权限，请登录', 'warning');
+                    }
                     return;
                 } else if (window.location.pathname.includes('/student')) {
                     // 学生页面重新显示登录表单

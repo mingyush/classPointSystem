@@ -217,40 +217,43 @@ function renderStudentDashboard() {
     const container = document.getElementById('studentContent');
 
     container.innerHTML = `
-        <div class="student-header">
+        <div class="clay-panel p-6 mb-6 flex flex-col md:flex-row justify-between items-center gap-4 bg-[#ECFEFF] border-[#164E63] shadow-[6px_6px_0px_rgba(22,78,99,1)]">
             <div class="student-welcome">
-                <h2>欢迎，${currentStudent.name}！</h2>
-                <p>学号：${currentStudent.id}</p>
+                <h2 class="text-2xl font-display font-black text-brand-900 mb-1 uppercase tracking-widest">欢迎，<span class="text-[#06B6D4] underline decoration-4 underline-offset-4">${currentStudent.name}</span>！</h2>
+                <p class="text-sm font-bold text-brand-900/60 font-mono tracking-widest mt-2 uppercase">学号：${currentStudent.id}</p>
             </div>
-            <div class="header-actions">
-                <button onclick="refreshData()" class="refresh-btn">刷新数据</button>
-                <button onclick="logout()" class="logout-btn">退出登录</button>
+            <div class="flex flex-wrap gap-3">
+                <button onclick="refreshData()" class="px-5 py-2 text-sm font-black uppercase rounded-lg bg-white hover:bg-[#CFFAFE] text-brand-900 border-4 border-brand-900 shadow-[4px_4px_0px_rgba(22,78,99,1)] hover:-translate-y-1 hover:shadow-[6px_6px_0px_rgba(22,78,99,1)] active:translate-y-1 active:shadow-[0px_0px_0px_rgba(22,78,99,1)] transition-all">刷新数据</button>
+                <button onclick="logout()" class="px-5 py-2 text-sm font-black uppercase rounded-lg bg-[#FCA5A5] hover:bg-[#F87171] text-[#7F1D1D] border-4 border-[#7F1D1D] shadow-[4px_4px_0px_rgba(127,29,29,1)] hover:-translate-y-1 hover:shadow-[6px_6px_0px_rgba(127,29,29,1)] active:translate-y-1 active:shadow-[0px_0px_0px_rgba(127,29,29,1)] transition-all flex items-center gap-2 focus:outline-none">退出登录</button>
             </div>
         </div>
         
-        <div class="dashboard-tabs">
-            <button class="tab-button active" onclick="switchDashboardTab('overview', this)">个人概览</button>
-            <button class="tab-button" onclick="switchDashboardTab('history', this)">积分记录</button>
-            <button class="tab-button" onclick="switchDashboardTab('products', this)">商品兑换</button>
-            <button class="tab-button" onclick="switchDashboardTab('orders', this)">我的预约</button>
+        <div class="flex gap-4 overflow-x-auto pb-4 mb-2 border-b-4 border-brand-900/10 custom-scrollbar">
+            <button class="tab-button active px-5 py-2 text-sm font-black uppercase rounded-lg border-4 border-transparent hover:border-brand-900 text-brand-900 hover:shadow-[4px_4px_0px_rgba(22,78,99,1)] hover:bg-[#CFFAFE] transition-all [&.active]:bg-[#22D3EE] [&.active]:border-brand-900 [&.active]:shadow-[4px_4px_0px_rgba(22,78,99,1)] whitespace-nowrap" onclick="switchDashboardTab('overview', this)">个人概览</button>
+            <button class="tab-button px-5 py-2 text-sm font-black uppercase rounded-lg border-4 border-transparent hover:border-brand-900 text-brand-900 hover:shadow-[4px_4px_0px_rgba(22,78,99,1)] hover:bg-[#CFFAFE] transition-all [&.active]:bg-[#22D3EE] [&.active]:border-brand-900 [&.active]:shadow-[4px_4px_0px_rgba(22,78,99,1)] whitespace-nowrap" onclick="switchDashboardTab('history', this)">积分记录</button>
+            <button class="tab-button px-5 py-2 text-sm font-black uppercase rounded-lg border-4 border-transparent hover:border-brand-900 text-brand-900 hover:shadow-[4px_4px_0px_rgba(22,78,99,1)] hover:bg-[#CFFAFE] transition-all [&.active]:bg-[#22D3EE] [&.active]:border-brand-900 [&.active]:shadow-[4px_4px_0px_rgba(22,78,99,1)] whitespace-nowrap" onclick="switchDashboardTab('products', this)">商品兑换</button>
+            <button class="tab-button px-5 py-2 text-sm font-black uppercase rounded-lg border-4 border-transparent hover:border-brand-900 text-brand-900 hover:shadow-[4px_4px_0px_rgba(22,78,99,1)] hover:bg-[#CFFAFE] transition-all [&.active]:bg-[#22D3EE] [&.active]:border-brand-900 [&.active]:shadow-[4px_4px_0px_rgba(22,78,99,1)] whitespace-nowrap" onclick="switchDashboardTab('orders', this)">我的预约</button>
         </div>
         
-        <div id="overviewTab" class="dashboard-content active">
+        <div id="overviewTab" class="dashboard-content active transition-opacity duration-300">
             ${renderOverviewTab()}
         </div>
         
-        <div id="historyTab" class="dashboard-content">
+        <div id="historyTab" class="dashboard-content hidden transition-opacity duration-300">
             ${renderHistoryTab()}
         </div>
         
-        <div id="productsTab" class="dashboard-content">
+        <div id="productsTab" class="dashboard-content hidden transition-opacity duration-300">
             ${renderProductsTab()}
         </div>
         
-        <div id="ordersTab" class="dashboard-content">
+        <div id="ordersTab" class="dashboard-content hidden transition-opacity duration-300">
             ${renderOrdersTab()}
         </div>
     `;
+
+    // Fix the display for initially hidden tabs
+    document.querySelectorAll('.dashboard-content:not(.active)').forEach(el => el.style.display = 'none');
 }
 
 // 切换仪表板标签页
@@ -280,68 +283,72 @@ function renderOverviewTab() {
     const recentHistory = studentHistory.slice(0, 5);
 
     return `
-        <div class="overview-grid">
-            <div class="info-card balance-card">
-                <h3>当前积分</h3>
-                <div class="balance-display">
-                    <div class="balance-amount ${balance < 0 ? 'negative' : ''}">${balance}</div>
-                    <div class="balance-label">积分</div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6 mt-6">
+            <div class="lg:col-span-4 clay-panel p-6 bg-white flex flex-col justify-center items-center text-center hover:-translate-y-1 transition-transform">
+                <h3 class="text-lg font-black uppercase tracking-widest text-[#06B6D4] mb-2 border-b-4 border-brand-900 pb-2 w-full">当前积分</h3>
+                <div class="my-6">
+                    <div class="text-6xl font-black font-mono tracking-tighter ${balance < 0 ? 'text-[#EF4444]' : 'text-brand-900'}">${balance}</div>
+                    <div class="text-sm font-bold text-brand-900/60 mt-2 uppercase tracking-widest border-2 border-brand-900 rounded px-2 py-0.5 inline-block">POINTS</div>
                 </div>
-                <div class="balance-status">
-                    ${balance >= 0 ? '积分充足' : '积分不足'}
+                <div class="w-full py-2 rounded font-black uppercase tracking-wider ${balance >= 0 ? 'bg-[#DCFCE7] text-[#16A34A] border-2 border-[#16A34A]' : 'bg-[#FEE2E2] text-[#DC2626] border-2 border-[#DC2626]'}">
+                    ${balance >= 0 ? '积分充足 ✅' : '积分不足 ⚠️'}
                 </div>
             </div>
             
-            <div class="info-card rank-card">
-                <h3>班级排名</h3>
-                <div class="rank-display">
-                    <div class="rank-number">${rank > 0 ? `第 ${rank} 名` : '暂无排名'}</div>
-                    <div class="rank-label">班级排名</div>
+            <div class="lg:col-span-4 clay-panel p-6 bg-[#CFFAFE] flex flex-col justify-center items-center text-center hover:-translate-y-1 transition-transform">
+                <h3 class="text-lg font-black uppercase tracking-widest text-brand-900 mb-2 border-b-4 border-brand-900 pb-2 w-full">班级排名</h3>
+                <div class="my-6">
+                    <div class="text-5xl font-black font-display text-brand-900">${rank > 0 ? `第 ${rank} 名` : '暂无'}</div>
+                    <div class="text-sm font-bold text-brand-900/60 mt-3 uppercase tracking-widest border-2 border-brand-900 rounded bg-white px-2 py-0.5 inline-block">RANKING</div>
                 </div>
-                <div class="rank-status">
+                <div class="w-full py-2 rounded font-black text-brand-900 bg-white border-4 border-brand-900 uppercase tracking-wider">
                     ${getRankStatus(rank)}
                 </div>
             </div>
+
+            <div class="lg:col-span-4 clay-panel p-6 bg-white hover:-translate-y-1 transition-transform">
+                <h3 class="text-lg font-black uppercase tracking-widest text-brand-900 mb-4 border-b-4 border-brand-900 pb-2">统计信息</h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="text-center p-3 rounded-xl border-4 border-brand-900 bg-[#ECFEFF]">
+                        <div class="text-2xl font-black font-mono text-[#16A34A]">${studentHistory.filter(r => r.points > 0).length}</div>
+                        <div class="text-xs font-bold text-brand-900 uppercase mt-1">获得加分</div>
+                    </div>
+                    <div class="text-center p-3 rounded-xl border-4 border-brand-900 bg-[#ECFEFF]">
+                        <div class="text-2xl font-black font-mono text-[#EF4444]">${studentHistory.filter(r => r.points < 0).length}</div>
+                        <div class="text-xs font-bold text-brand-900 uppercase mt-1">被减分</div>
+                    </div>
+                    <div class="text-center p-3 rounded-xl border-4 border-brand-900 bg-[#ECFEFF]">
+                        <div class="text-2xl font-black font-mono text-[#06B6D4]">${studentOrders.length}</div>
+                        <div class="text-xs font-bold text-brand-900 uppercase mt-1">预约次数</div>
+                    </div>
+                    <div class="text-center p-3 rounded-xl border-4 border-brand-900 bg-[#CFFAFE]">
+                        <div class="text-2xl font-black font-mono text-[#16A34A]">${studentOrders.filter(o => o.status === 'confirmed').length}</div>
+                        <div class="text-xs font-bold text-brand-900 uppercase mt-1">成功兑换</div>
+                    </div>
+                </div>
+            </div>
             
-            <div class="info-card recent-card">
-                <h3>最近记录</h3>
-                <div class="recent-history">
+            <div class="lg:col-span-12 clay-panel p-6 bg-white">
+                <div class="flex justify-between items-end mb-6 border-b-4 border-brand-900 pb-3">
+                    <h3 class="text-xl font-black uppercase tracking-widest text-brand-900">最近记录</h3>
+                    ${recentHistory.length > 0 ? `<button onclick="switchDashboardTab('history')" class="text-sm font-bold text-[#06B6D4] hover:text-[#0891B2] uppercase tracking-wider border-b-2 border-transparent hover:border-[#0891B2] transition-colors">查看全部 &rarr;</button>` : ''}
+                </div>
+                
+                <div class="space-y-4">
                     ${recentHistory.length > 0 ?
             recentHistory.map(record => `
-                            <div class="recent-item">
-                                <span class="recent-reason">${record.reason}</span>
-                                <span class="recent-points ${record.points > 0 ? 'positive' : 'negative'}">
+                            <div class="flex justify-between items-center p-4 rounded-xl border-4 border-brand-900 hover:bg-[#CFFAFE] transition-colors group">
+                                <span class="font-bold text-brand-900 group-hover:text-[#06B6D4] transition-colors">${record.reason}</span>
+                                <span class="text-xl font-black font-mono px-3 py-1 rounded bg-white border-2 border-brand-900 ${record.points > 0 ? 'text-[#16A34A]' : 'text-[#EF4444]'}">
                                     ${record.points > 0 ? '+' : ''}${record.points}分
                                 </span>
                             </div>
                         `).join('') :
-            '<div class="no-data">暂无记录</div>'
-        }
+            '<div class="text-center text-brand-900/50 font-bold py-8 uppercase tracking-widest border-4 border-dashed border-brand-900/20 rounded-xl">暂无记录</div>'
+                    }
                 </div>
-                ${recentHistory.length > 0 ? '<button onclick="switchDashboardTab(\'history\')" class="view-all-btn">查看全部</button>' : ''}
             </div>
             
-            <div class="info-card stats-card">
-                <h3>统计信息</h3>
-                <div class="stats-grid">
-                    <div class="stat-item">
-                        <div class="stat-value">${studentHistory.filter(r => r.points > 0).length}</div>
-                        <div class="stat-label">获得加分次数</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value">${studentHistory.filter(r => r.points < 0).length}</div>
-                        <div class="stat-label">被减分次数</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value">${studentOrders.length}</div>
-                        <div class="stat-label">预约次数</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value">${studentOrders.filter(o => o.status === 'confirmed').length}</div>
-                        <div class="stat-label">成功兑换</div>
-                    </div>
-                </div>
-            </div>
         </div>
     `;
 }
@@ -349,11 +356,11 @@ function renderOverviewTab() {
 // 渲染历史记录标签页
 function renderHistoryTab() {
     return `
-        <div class="history-section">
-            <div class="history-header">
-                <h3>积分变动记录</h3>
-                <div class="history-filter">
-                    <select id="historyFilter" onchange="filterHistory()">
+        <div class="clay-panel p-6 mt-6 bg-white min-h-[500px]">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 border-b-4 border-brand-900 pb-4">
+                <h3 class="text-xl font-display font-black text-brand-900 uppercase tracking-widest">积分变动记录</h3>
+                <div class="w-full sm:w-auto">
+                    <select id="historyFilter" onchange="filterHistory()" class="w-full sm:w-auto bg-white border-4 border-brand-900 rounded-xl px-4 py-2 text-brand-900 focus:outline-none focus:ring-4 focus:ring-[#67E8F9] font-black shadow-[4px_4px_0px_rgba(22,78,99,1)] transition-all cursor-pointer">
                         <option value="">全部记录</option>
                         <option value="add">加分记录</option>
                         <option value="subtract">减分记录</option>
@@ -362,7 +369,7 @@ function renderHistoryTab() {
                 </div>
             </div>
             
-            <div class="history-list" id="historyList">
+            <div class="space-y-4 pr-3 custom-scrollbar" id="historyList">
                 ${renderHistoryList(studentHistory)}
             </div>
         </div>
@@ -372,21 +379,31 @@ function renderHistoryTab() {
 // 渲染历史记录列表
 function renderHistoryList(history) {
     if (!history || history.length === 0) {
-        return '<div class="no-data">暂无积分记录</div>';
+        return '<div class="text-center text-brand-900/50 font-bold py-10 uppercase tracking-widest border-4 border-dashed border-brand-900/20 rounded-xl clay-panel shadow-none">暂无积分记录</div>';
     }
 
     return history.map(record => {
         const isPositive = record.points > 0;
         const typeClass = record.type || (isPositive ? 'add' : 'subtract');
+        
+        const badgeColors = {
+            'add': 'bg-[#DCFCE7] text-[#16A34A] border-[#16A34A]',
+            'subtract': 'bg-[#FEE2E2] text-[#DC2626] border-[#DC2626]',
+            'purchase': 'bg-[#FEF9C3] text-[#CA8A04] border-[#CA8A04]',
+            'refund': 'bg-[#E0E7FF] text-[#4F46E5] border-[#4F46E5]'
+        };
+        const badgeColor = badgeColors[typeClass] || badgeColors['add'];
 
         return `
-            <div class="history-item ${isPositive ? 'positive' : 'negative'}">
-                <div class="history-info">
-                    <div class="history-reason">${record.reason}</div>
-                    <div class="history-time">${formatDate(record.timestamp)}</div>
-                    <div class="history-type">${getTypeText(typeClass)}</div>
+            <div class="p-5 rounded-2xl bg-white border-4 border-brand-900 flex justify-between items-center transition-all hover:shadow-[4px_4px_0px_rgba(22,78,99,1)] hover:-translate-y-1">
+                <div class="flex flex-col gap-2">
+                    <div class="font-black text-brand-900 text-lg sm:text-xl">${record.reason}</div>
+                    <div class="flex items-center gap-3">
+                        <div class="text-xs font-bold text-brand-900/60 font-mono">${formatDate(record.timestamp)}</div>
+                        <div class="text-[10px] font-black uppercase tracking-widest border-2 px-2 py-0.5 rounded ${badgeColor}">${getTypeText(typeClass)}</div>
+                    </div>
                 </div>
-                <div class="history-points ${isPositive ? 'positive' : 'negative'}">
+                <div class="text-3xl font-black font-mono shrink-0 pl-4 ${isPositive ? 'text-[#16A34A]' : 'text-[#EF4444]'}">
                     ${isPositive ? '+' : ''}${record.points}分
                 </div>
             </div>
@@ -397,15 +414,16 @@ function renderHistoryList(history) {
 // 渲染商品标签页
 function renderProductsTab() {
     return `
-        <div class="products-section">
-            <div class="products-header">
-                <h3>商品兑换</h3>
-                <div class="products-info">
-                    <span>当前积分：<strong>${currentStudent.balance || 0}分</strong></span>
+        <div class="clay-panel p-6 mt-6 bg-[#ECFEFF]">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 border-b-4 border-brand-900 pb-4">
+                <h3 class="text-xl font-display font-black text-brand-900 uppercase tracking-widest">商品兑换广场</h3>
+                <div class="bg-white border-4 border-brand-900 rounded-lg px-4 py-2 shadow-[2px_2px_0px_rgba(22,78,99,1)]">
+                    <span class="text-sm font-black uppercase text-brand-900 mr-2">当前积分:</span>
+                    <strong class="text-xl font-mono text-[#06B6D4] font-black">${currentStudent.balance || 0}</strong><span class="text-xs ml-1 font-bold text-brand-900 uppercase">pts</span>
                 </div>
             </div>
             
-            <div class="products-grid" id="productsGrid">
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6" id="productsGrid">
                 ${renderProductsGrid(products)}
             </div>
         </div>
@@ -415,7 +433,7 @@ function renderProductsTab() {
 // 渲染商品网格
 function renderProductsGrid(productList) {
     if (!productList || productList.length === 0) {
-        return '<div class="no-data">暂无可兑换商品</div>';
+        return '<div class="col-span-full clay-panel bg-white p-10 text-center text-brand-900/50 font-black uppercase tracking-widest border-4 border-dashed border-brand-900/20 shadow-none">暂无可兑换商品</div>';
     }
 
     return productList.map(product => {
@@ -424,17 +442,27 @@ function renderProductsGrid(productList) {
         const canReserve = canAfford && inStock;
 
         return `
-            <div class="product-card">
-                <div class="product-name">${product.name}</div>
-                <div class="product-price">${product.price}分</div>
-                <div class="product-stock ${inStock ? '' : 'out-of-stock'}">
-                    ${inStock ? `库存：${product.stock}个` : '暂时缺货'}
+            <div class="p-6 rounded-2xl bg-white border-4 border-brand-900 flex flex-col hover:-translate-y-2 hover:shadow-[8px_8px_0px_rgba(22,78,99,1)] shadow-[4px_4px_0px_rgba(22,78,99,1)] transition-all relative overflow-hidden group">
+                ${!inStock ? '<div class="absolute -right-12 top-6 bg-[#EF4444] text-white font-black uppercase tracking-widest px-12 py-1 rotate-45 border-y-2 border-brand-900 text-xs">缺货空空</div>' : ''}
+                
+                <h4 class="text-xl font-black uppercase tracking-wider font-display text-brand-900 mb-2 truncate group-hover:text-[#06B6D4] transition-colors">${product.name}</h4>
+                
+                <div class="flex items-center gap-2 mb-4">
+                    <div class="text-brand-900 bg-[#CFFAFE] border-2 border-brand-900 px-3 py-1 rounded font-display font-black text-xl">${product.price}分</div>
+                    <div class="text-xs font-black uppercase tracking-widest px-2 py-1 rounded border-2 border-brand-900 ${inStock ? 'bg-[#DCFCE7] text-[#16A34A]' : 'bg-[#FEE2E2] text-[#DC2626]'}">
+                        ${inStock ? `余 ${product.stock}` : '已售罄'}
+                    </div>
                 </div>
-                ${product.description ? `<div class="product-description">${product.description}</div>` : ''}
-                <button class="reserve-btn" 
+                
+                <p class="text-sm font-bold text-brand-900/70 mb-6 flex-1 min-h-[3rem] line-clamp-2">${product.description || '这件商品很神秘，没有描述。'}</p>
+                
+                <button class="w-full py-3 rounded-lg border-4 font-black transition-all uppercase tracking-widest text-sm focus:outline-none
+                        ${canReserve ? 
+                            'bg-[#06B6D4] hover:bg-[#0891B2] text-white border-brand-900 shadow-[4px_4px_0px_rgba(22,78,99,1)] active:translate-y-1 active:shadow-none' : 
+                            'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed shadow-none'}" 
                         onclick="reserveProduct('${product.id}')" 
                         ${!canReserve ? 'disabled' : ''}>
-                    ${!canAfford ? '积分不足' : !inStock ? '暂时缺货' : '立即预约'}
+                    ${!canAfford ? '积分不足，继续努力 💪' : !inStock ? '下次早点来 😢' : '我要预约 🎁'}
                 </button>
             </div>
         `;
@@ -444,20 +472,20 @@ function renderProductsGrid(productList) {
 // 渲染预约标签页
 function renderOrdersTab() {
     return `
-        <div class="orders-section">
-            <div class="orders-header">
-                <h3>我的预约</h3>
-                <div class="orders-filter">
-                    <select id="ordersFilter" onchange="filterOrders()">
+        <div class="clay-panel p-6 mt-6 bg-[#ECFEFF]">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 border-b-4 border-brand-900 pb-4">
+                <h3 class="text-xl font-display font-black text-brand-900 uppercase tracking-widest">我的预约包里</h3>
+                <div class="w-full sm:w-auto">
+                    <select id="ordersFilter" onchange="filterOrders()" class="w-full sm:w-auto bg-white border-4 border-brand-900 rounded-xl px-4 py-2 text-brand-900 focus:outline-none focus:ring-4 focus:ring-[#67E8F9] font-black shadow-[4px_4px_0px_rgba(22,78,99,1)] transition-all cursor-pointer">
                         <option value="">全部预约</option>
-                        <option value="pending">待确认</option>
-                        <option value="confirmed">已确认</option>
+                        <option value="pending">待老师确认</option>
+                        <option value="confirmed">已兑换成功</option>
                         <option value="cancelled">已取消</option>
                     </select>
                 </div>
             </div>
             
-            <div class="orders-list" id="ordersList">
+            <div class="space-y-4" id="ordersList">
                 ${renderOrdersList(studentOrders)}
             </div>
         </div>
@@ -467,25 +495,39 @@ function renderOrdersTab() {
 // 渲染预约列表
 function renderOrdersList(orderList) {
     if (!orderList || orderList.length === 0) {
-        return '<div class="no-data">暂无预约记录</div>';
+        return '<div class="clay-panel bg-white p-10 text-center text-brand-900/50 font-black uppercase tracking-widest border-4 border-dashed border-brand-900/20 shadow-none">包里空空如也，还没有预约任何商品哦。</div>';
     }
 
     return orderList.map(order => {
         const product = products.find(p => p.id === order.productId);
         const statusText = getOrderStatusText(order.status);
+        
+        // 状态徽章颜色
+        const statusColors = {
+            'pending': 'bg-[#FEF9C3] text-[#CA8A04] border-[#CA8A04]',
+            'confirmed': 'bg-[#DCFCE7] text-[#16A34A] border-[#16A34A]',
+            'cancelled': 'bg-[#F3F4F6] text-[#6B7280] border-[#9CA3AF]'
+        };
+        const badgeColor = statusColors[order.status] || statusColors['pending'];
 
         return `
-            <div class="order-item">
-                <div class="order-info">
-                    <div class="order-product">${product?.name || '未知商品'}</div>
-                    <div class="order-price">${product?.price || 0}分</div>
-                    <div class="order-time">预约时间：${formatDate(order.reservedAt)}</div>
-                    ${order.confirmedAt ? `<div class="order-confirmed">确认时间：${formatDate(order.confirmedAt)}</div>` : ''}
+            <div class="p-5 rounded-2xl bg-white border-4 border-brand-900 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all hover:shadow-[4px_4px_0px_rgba(22,78,99,1)] hover:-translate-y-1 group">
+                <div class="flex-1 w-full">
+                    <div class="flex justify-between items-start md:items-center mb-3">
+                        <h4 class="font-black text-xl text-brand-900 uppercase tracking-wider group-hover:text-[#06B6D4] transition-colors">${product?.name || '未知商品'}</h4>
+                        <div class="text-Brand-900 bg-[#CFFAFE] border-2 border-brand-900 px-2 py-0.5 rounded font-display font-black shrink-0 ml-4">${product?.price || 0}分</div>
+                    </div>
+                    
+                    <div class="flex flex-wrap gap-x-6 gap-y-2 text-xs font-bold text-brand-900/60 font-mono">
+                        <div>📅 预约于：${formatDate(order.reservedAt)}</div>
+                        ${order.confirmedAt ? `<div class="text-[#16A34A]">✅ 确认于：${formatDate(order.confirmedAt)}</div>` : ''}
+                    </div>
                 </div>
-                <div class="order-status">
-                    <span class="status-badge status-${order.status}">${statusText}</span>
+                
+                <div class="flex items-center gap-3 w-full md:w-auto shrink-0 justify-between md:justify-end border-t-2 md:border-t-0 md:border-l-4 border-brand-900/10 pt-3 md:pt-0 md:pl-5">
+                    <span class="text-xs font-black uppercase tracking-widest px-3 py-1 rounded border-2 ${badgeColor}">${statusText}</span>
                     ${order.status === 'pending' ?
-                `<button class="cancel-order-btn" onclick="cancelOrder('${order.id}')">取消预约</button>` :
+                `<button class="px-4 py-2 text-xs font-black uppercase rounded-lg bg-[#FCA5A5] border-2 border-[#7F1D1D] hover:bg-[#F87171] text-[#7F1D1D] transition-all shadow-[2px_2px_0px_rgba(127,29,29,1)] active:translate-y-1 active:shadow-none focus:outline-none shrink-0" onclick="cancelOrder('${order.id}')">放弃预约</button>` :
                 ''
             }
                 </div>
