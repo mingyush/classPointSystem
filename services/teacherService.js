@@ -8,8 +8,15 @@ const { Teacher } = require('../models/dataModels');
 class TeacherService {
     constructor() {
         this.dataAccess = new DataAccess();
-        this.filename = 'teachers.json';
-        this.defaultData = { teachers: [] };
+        this.adminId = process.env.ADMIN_USERNAME || 'admin';
+        this.adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+    }
+
+    /**
+     * 确保数据访问层初始化
+     */
+    async _ensureInit() {
+        await this.dataAccess.ensureDirectories();
     }
 
     /**
@@ -19,14 +26,14 @@ class TeacherService {
      */
     async getAllTeachers(activeOnly = true) {
         try {
-            const data = await this.dataAccess.readFile(this.filename, this.defaultData);
-            let teachers = data.teachers.map(teacherData => new Teacher(teacherData));
-            
+            await this._ensureInit();
+            const teachers = await this.dataAccess.getAllTeachers();
+
             if (activeOnly) {
-                teachers = teachers.filter(teacher => teacher.isActive);
+                return teachers.filter(t => t.isActive && t.id !== this.adminId).map(t => new Teacher(t));
             }
-            
-            return teachers;
+
+            return teachers.filter(t => t.id !== this.adminId).map(teacherData => new Teacher(teacherData));
         } catch (error) {
             console.error('获取教师列表失败:', error);
             throw new Error('获取教师列表失败');
@@ -40,10 +47,26 @@ class TeacherService {
      */
     async getTeacherById(teacherId) {
         try {
-            const data = await this.dataAccess.readFile(this.filename, this.defaultData);
-            const teacherData = data.teachers.find(t => t.id === teacherId && t.isActive);
-            
-            return teacherData ? new Teacher(teacherData) : null;
+            if (teacherId === this.adminId) {
+                return new Teacher({
+                    id: this.adminId,
+                    name: '超级管理员',
+                    password: this.adminPassword,
+                    role: 'admin',
+                    department: '系统管理',
+                    isActive: true,
+                    createdAt: new Date().toISOString()
+                });
+            }
+
+            await this._ensureInit();
+            const teacher = await this.dataAccess.getTeacherById(teacherId);
+
+            if (!teacher || !teacher.isActive) {
+                return null;
+            }
+
+            return new Teacher(teacher);
         } catch (error) {
             console.error('获取教师失败:', error);
             throw new Error('获取教师失败');
@@ -59,7 +82,7 @@ class TeacherService {
     async validateTeacherLogin(teacherId, password) {
         try {
             const teacher = await this.getTeacherById(teacherId);
-            
+
             if (!teacher) {
                 return null;
             }
@@ -72,7 +95,7 @@ class TeacherService {
             // 返回教师信息（不包含密码）
             const teacherInfo = teacher.toJSON();
             delete teacherInfo.password;
-            
+
             return new Teacher(teacherInfo);
         } catch (error) {
             console.error('验证教师登录失败:', error);
@@ -87,37 +110,37 @@ class TeacherService {
      */
     async createTeacher(teacherData) {
         try {
+            await this._ensureInit();
             const teacher = new Teacher(teacherData);
-            
+
             // 验证教师数据
             const validation = teacher.validate();
             if (!validation.isValid) {
                 throw new Error('教师数据验证失败: ' + validation.errors.join(', '));
             }
 
-            // 检查教师ID是否已存在
-            const existingTeacher = await this.getTeacherById(teacher.id);
-            if (existingTeacher) {
+            // 检查教师ID是否已存在或是否为内置admin
+            if (teacher.id === this.adminId) {
+                throw new Error('不能使用系统预留的管理员ID');
+            }
+            if (teacher.role === 'admin') {
+                throw new Error('不能创建额外的超级管理员');
+            }
+
+            const existingTeacher = await this.dataAccess.getTeacherById(teacher.id);
+            if (existingTeacher && existingTeacher.isActive) {
                 throw new Error('教师ID已存在');
             }
 
-            // 读取现有数据
-            const data = await this.dataAccess.readFile(this.filename, this.defaultData);
-            
-            // 添加新教师
-            data.teachers.push(teacher.toJSON());
-            
-            // 保存数据
-            await this.dataAccess.writeFile(this.filename, data);
-            
+            const created = await this.dataAccess.createTeacher(teacher.toJSON());
+
             console.log(`创建教师成功: ${teacher.name} (ID: ${teacher.id})`);
-            
+
             // 返回教师信息（不包含密码）
-            const teacherInfo = teacher.toJSON();
+            const teacherInfo = created;
             delete teacherInfo.password;
-            
+
             return new Teacher(teacherInfo);
-            
         } catch (error) {
             console.error('创建教师失败:', error);
             throw error;
@@ -132,41 +155,112 @@ class TeacherService {
      */
     async updateTeacher(teacherId, updateData) {
         try {
-            // 读取现有数据
-            const data = await this.dataAccess.readFile(this.filename, this.defaultData);
-            const teacherIndex = data.teachers.findIndex(t => t.id === teacherId);
-            
-            if (teacherIndex === -1) {
+            if (teacherId === this.adminId) {
+                throw new Error('内置系统管理员信息不可修改');
+            }
+
+            await this._ensureInit();
+
+            const existingTeacher = await this.dataAccess.getTeacherById(teacherId);
+            if (!existingTeacher) {
                 throw new Error('教师不存在');
             }
 
             // 合并更新数据
-            const existingTeacher = data.teachers[teacherIndex];
             const updatedTeacherData = { ...existingTeacher, ...updateData };
             const updatedTeacher = new Teacher(updatedTeacherData);
-            
+
             // 验证更新后的教师数据
             const validation = updatedTeacher.validate();
             if (!validation.isValid) {
                 throw new Error('教师数据验证失败: ' + validation.errors.join(', '));
             }
 
-            // 更新教师数据
-            data.teachers[teacherIndex] = updatedTeacher.toJSON();
-            
-            // 保存数据
-            await this.dataAccess.writeFile(this.filename, data);
-            
+            const updated = await this.dataAccess.updateTeacher(teacherId, updateData);
+
             console.log(`更新教师成功: ${updatedTeacher.name} (ID: ${teacherId})`);
-            
+
             // 返回教师信息（不包含密码）
-            const teacherInfo = updatedTeacher.toJSON();
+            const teacherInfo = updated;
             delete teacherInfo.password;
-            
+
             return new Teacher(teacherInfo);
-            
         } catch (error) {
             console.error('更新教师失败:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 自助修改密码
+     * @param {string} teacherId - 当前登录的教师ID
+     * @param {string} oldPassword - 旧密码
+     * @param {string} newPassword - 新密码
+     * @returns {Promise<boolean>}
+     */
+    async changePassword(teacherId, oldPassword, newPassword) {
+        try {
+            if (teacherId === this.adminId) {
+                throw new Error('系统内置管理员密码请在服务器端（环境变量或配置）修改，不支持通过页面修改。');
+            }
+            
+            await this._ensureInit();
+            
+            if (!newPassword || newPassword.length < 3) {
+                throw new Error('新密码长度至少需要3位');
+            }
+
+            const teacher = await this.dataAccess.getTeacherById(teacherId);
+            if (!teacher || !teacher.isActive) {
+                throw new Error('教师不存在或已停用');
+            }
+
+            if (teacher.password !== oldPassword) {
+                throw new Error('原密码错误');
+            }
+
+            await this.dataAccess.updateTeacher(teacherId, { password: newPassword });
+            console.log(`教师 ${teacherId} 自助重置密码成功`);
+            return true;
+        } catch (error) {
+            console.error(`教师 ${teacherId} 修改密码失败:`, error.message);
+            throw error;
+        }
+    }
+
+    /**
+     * 强行重置密码 (针对管理员或班主任直接操作普通账号)
+     * @param {string} teacherId - 目标教师ID
+     * @param {string} newPassword - 新密码
+     * @returns {Promise<boolean>}
+     */
+    async resetPassword(teacherId, newPassword) {
+        try {
+            if (teacherId === this.adminId) {
+                throw new Error('无法通过系统重置内置管理员的密码');
+            }
+            
+            await this._ensureInit();
+            
+            if (!newPassword || newPassword.length < 3) {
+                throw new Error('新密码长度至少需要3位');
+            }
+
+            const teacher = await this.dataAccess.getTeacherById(teacherId);
+            if (!teacher) {
+                throw new Error('目标教师不存在');
+            }
+
+            // 保护管理员账号不被直接通过API强行重置，除非是通过 changePassword 验证旧密码
+            if (teacher.role === 'admin') {
+                throw new Error('无法强制重置最高管理员的密码');
+            }
+
+            await this.dataAccess.updateTeacher(teacherId, { password: newPassword });
+            console.log(`教师 ${teacherId} 密码已被管理员/班主任强制重置`);
+            return true;
+        } catch (error) {
+            console.error(`重置教师 ${teacherId} 密码失败:`, error.message);
             throw error;
         }
     }
@@ -178,23 +272,21 @@ class TeacherService {
      */
     async deleteTeacher(teacherId) {
         try {
-            // 读取现有数据
-            const data = await this.dataAccess.readFile(this.filename, this.defaultData);
-            const teacherIndex = data.teachers.findIndex(t => t.id === teacherId);
-            
-            if (teacherIndex === -1) {
+            if (teacherId === this.adminId) {
+                throw new Error('内置系统管理员不可删除');
+            }
+
+            await this._ensureInit();
+
+            const existingTeacher = await this.dataAccess.getTeacherById(teacherId);
+            if (!existingTeacher) {
                 throw new Error('教师不存在');
             }
 
-            // 软删除：设置为不活跃
-            data.teachers[teacherIndex].isActive = false;
-            
-            // 保存数据
-            await this.dataAccess.writeFile(this.filename, data);
-            
+            await this.dataAccess.deleteTeacher(teacherId);
+
             console.log(`删除教师成功: ID ${teacherId}`);
             return true;
-            
         } catch (error) {
             console.error('删除教师失败:', error);
             throw error;
@@ -208,24 +300,23 @@ class TeacherService {
     async getTeacherStatistics() {
         try {
             const teachers = await this.getAllTeachers(false);
-            
+
             const statistics = {
                 total: teachers.length,
                 active: teachers.filter(t => t.isActive).length,
                 inactive: teachers.filter(t => !t.isActive).length,
                 byDepartment: {}
             };
-            
+
             // 按部门统计
             teachers.forEach(teacher => {
                 if (teacher.isActive && teacher.department) {
-                    statistics.byDepartment[teacher.department] = 
+                    statistics.byDepartment[teacher.department] =
                         (statistics.byDepartment[teacher.department] || 0) + 1;
                 }
             });
-            
+
             return statistics;
-            
         } catch (error) {
             console.error('获取教师统计失败:', error);
             throw error;

@@ -1,8 +1,12 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const StudentService = require('../services/studentService');
+const TeacherService = require('../services/teacherService');
 const router = express.Router();
 
+// 创建服务实例
+const studentService = new StudentService();
+const teacherService = new TeacherService();
 // JWT密钥 (生产环境应使用环境变量)
 const JWT_SECRET = process.env.JWT_SECRET || 'classroom-points-system-secret-key';
 
@@ -27,7 +31,6 @@ router.post('/student-login', async (req, res) => {
         }
 
         // 验证学生是否存在
-        const studentService = new StudentService();
         const student = await studentService.validateStudentLogin(studentId.trim());
 
         if (!student) {
@@ -74,8 +77,6 @@ router.post('/student-login', async (req, res) => {
     }
 });
 
-// 引入教师服务
-const TeacherService = require('../services/teacherService');
 
 /**
  * 教师登录接口
@@ -105,7 +106,6 @@ router.post('/teacher-login', async (req, res) => {
         const trimmedTeacherId = teacherId.trim();
         
         // 使用教师服务验证登录
-        const teacherService = new TeacherService();
         const teacher = await teacherService.validateTeacherLogin(trimmedTeacherId, password);
         
         if (!teacher) {
@@ -177,6 +177,37 @@ router.post('/logout', (req, res) => {
         success: true,
         message: '登出成功'
     });
+});
+
+/**
+ * 修改密码接口
+ * 供已登录的教师修改自己的密码
+ */
+router.post('/change-password', authenticateToken, requireTeacher, async (req, res) => {
+    try {
+        const { oldPassword, newPassword } = req.body;
+        
+        if (!oldPassword || !newPassword) {
+            return res.status(400).json({
+                success: false,
+                message: '必须提供原密码和新密码'
+            });
+        }
+        
+        // 调用teacherService更新密码
+        await teacherService.changePassword(req.user.userId, oldPassword, newPassword);
+        
+        res.json({
+            success: true,
+            message: '密码修改成功'
+        });
+    } catch (error) {
+        console.error('修改密码失败:', error);
+        res.status(400).json({
+            success: false,
+            message: error.message || '修改密码失败，请原密码是否正确'
+        });
+    }
 });
 
 /**

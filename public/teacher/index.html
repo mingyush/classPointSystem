@@ -21,6 +21,7 @@
                 <button id="modeToggle" class="mode-toggle">切换到上课模式</button>
                 <a href="/display" class="display-link">大屏展示</a>
                 <a href="/" class="back-link">返回首页</a>
+                <button id="changePasswordBtn" class="action-btn">修改密码</button>
                 <button id="logoutBtn" class="logout-btn">退出登录</button>
             </div>
         </header>
@@ -31,8 +32,69 @@
         </main>
     </div>
     
+    <!-- 教师管理模态框 (新增/编辑) -->
+    <div id="teacherModal" class="modal">
+        <div class="modal-content">
+            <h2 id="teacherModalTitle">新增教师</h2>
+            <form id="teacherForm" onsubmit="handleTeacherSubmit(event)">
+                <input type="hidden" id="teacherOriginalId" value="">
+                
+                <div class="form-group">
+                    <label for="formTeacherId">教师账号/工号：</label>
+                    <input type="text" id="formTeacherId" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="formTeacherName">姓名：</label>
+                    <input type="text" id="formTeacherName" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="formTeacherDepartment">部门：</label>
+                    <input type="text" id="formTeacherDepartment">
+                </div>
+                
+                <div class="form-group" id="teacherPasswordGroup">
+                    <label for="formTeacherPassword">初始密码：</label>
+                    <input type="text" id="formTeacherPassword" placeholder="为空则默认为 teacher123">
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="submit-btn">保存</button>
+                    <button type="button" class="cancel-btn" onclick="hideTeacherModal()">取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 自助修改密码模态框 -->
+    <div id="changePasswordModal" class="modal">
+        <div class="modal-content">
+            <h2>修改当前密码</h2>
+            <form id="changePasswordForm" onsubmit="handleChangePasswordSubmit(event)">
+                <div class="form-group">
+                    <label for="oldPassword">原密码：</label>
+                    <input type="password" id="oldPassword" required>
+                </div>
+                <div class="form-group">
+                    <label for="newPassword">新密码：</label>
+                    <input type="password" id="newPassword" required>
+                </div>
+                <div class="form-group">
+                    <label for="confirmNewPassword">确认新密码：</label>
+                    <input type="password" id="confirmNewPassword" required>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="submit-btn">修改</button>
+                    <button type="button" class="cancel-btn" onclick="hideChangePasswordModal()">取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script src="/js/common.js"></script>
     <script src="/js/menu.js"></script>
+    <script src="/js/feedback.js"></script>
     <script src="/js/teacher.js"></script>
 </body>
 </html>

@@ -1,4 +1,5 @@
 const express = require('express');
+const { authenticateToken, requireTeacher } = require('./auth');
 const router = express.Router();
 
 // 存储所有活跃的SSE连接
@@ -142,7 +143,7 @@ router.get('/status', (req, res) => {
  * 手动触发测试消息
  * POST /api/sse/test
  */
-router.post('/test', (req, res) => {
+router.post('/test', authenticateToken, requireTeacher, (req, res) => {
     const { event = 'test', message = '测试消息' } = req.body;
     
     const sentCount = broadcastSSEMessage(event, {

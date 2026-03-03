@@ -69,6 +69,11 @@ function setupEventListeners() {
         logoutBtn.addEventListener('click', handleLogout);
     }
 
+    const changePasswordBtn = document.getElementById('changePasswordBtn');
+    if (changePasswordBtn) {
+        changePasswordBtn.addEventListener('click', showChangePasswordModal);
+    }
+
     // 更新用户信息显示
     updateUserInfo();
 }
@@ -113,8 +118,7 @@ function updateUserInfo() {
 
 // 处理退出登录
 function handleLogout() {
-    const confirmed = confirm('确定要退出登录吗？');
-    if (confirmed) {
+    showConfirmModal('确定要退出登录吗？', () => {
         // 清除本地存储的登录信息
         storage.remove('teacherToken');
         storage.remove('currentTeacher');
@@ -134,7 +138,7 @@ function handleLogout() {
                 window.location.reload();
             }
         }, 1500);
-    }
+    });
 }
 
 // 显示退出状态界面
@@ -216,17 +220,26 @@ async function loadInitialData() {
 // 渲染教师内容
 function renderTeacherContent() {
     const container = document.getElementById('teacherContent');
+    const teacher = storage.get('currentTeacher') || {};
+    const canManageTeachers = ['admin', 'director'].includes(teacher.role);
 
-    container.innerHTML = `
+    let tabsHtml = `
         <div class="management-tabs">
-            <button class="tab-button active" onclick="switchTab('points')">积分管理</button>
-            <button class="tab-button" onclick="switchTab('products')">商品管理</button>
-            <button class="tab-button" onclick="switchTab('orders')">预约管理</button>
-            <button class="tab-button" onclick="switchTab('system')">系统设置</button>
+            <button class="tab-button active" onclick="switchTab(event, 'points')">积分管理</button>
+            <button class="tab-button" onclick="switchTab(event, 'students')">学生管理</button>
+            <button class="tab-button" onclick="switchTab(event, 'products')">商品管理</button>
+            <button class="tab-button" onclick="switchTab(event, 'orders')">预约管理</button>
+            <button class="tab-button" onclick="switchTab(event, 'semesters')">学期管理</button>
+            <button class="tab-button" onclick="switchTab(event, 'system')">系统设置</button>
+            ${canManageTeachers ? `<button class="tab-button" onclick="switchTab(event, 'teachers')">教师管理</button>` : ''}
         </div>
         
         <div id="pointsTab" class="tab-content active">
             ${renderPointsManagement()}
+        </div>
+
+        <div id="studentsTab" class="tab-content">
+            ${renderStudentsManagement()}
         </div>
         
         <div id="productsTab" class="tab-content">
@@ -237,33 +250,57 @@ function renderTeacherContent() {
             ${renderOrdersManagement()}
         </div>
         
+        <div id="semestersTab" class="tab-content">
+            ${renderSemestersManagement()}
+        </div>
+        
         <div id="systemTab" class="tab-content">
             ${renderSystemSettings()}
         </div>
     `;
 
-    // 初始化积分管理
+    if (canManageTeachers) {
+        tabsHtml += `
+        <div id="teachersTab" class="tab-content">
+            ${renderTeachersManagement()}
+        </div>
+        `;
+    }
+
+    container.innerHTML = tabsHtml;
+
+    // 初始化各个模块
     initPointsManagement();
+    renderStudentList(); // 初始化学生列表
+    initSemesterPanel(); // 初始化学期管理面板
 }
 
 // 切换标签页
-function switchTab(tabName) {
+function switchTab(evt, tabName) {
+    // 处理未传 event 的兼容（如果还有旧代码调用）
+    const targetEl = evt ? evt.target : document.querySelector(`button[onclick="switchTab(event, '${tabName}')"]`);
+
     // 更新按钮状态
     document.querySelectorAll('.tab-button').forEach(btn => {
         btn.classList.remove('active');
     });
-    event.target.classList.add('active');
+    if (targetEl) targetEl.classList.add('active');
 
     // 更新内容显示
     document.querySelectorAll('.tab-content').forEach(content => {
         content.classList.remove('active');
     });
-    document.getElementById(`${tabName}Tab`).classList.add('active');
+    
+    const tabEl = document.getElementById(`${tabName}Tab`);
+    if (tabEl) tabEl.classList.add('active');
 
     // 根据标签页执行特定初始化
     switch (tabName) {
         case 'points':
             initPointsManagement();
+            break;
+        case 'students':
+            initStudentsManagement();
             break;
         case 'products':
             initProductsManagement();
@@ -273,6 +310,9 @@ function switchTab(tabName) {
             break;
         case 'system':
             initSystemSettings();
+            break;
+        case 'teachers':
+            loadTeachersList();
             break;
     }
 }
@@ -619,7 +659,8 @@ function selectStudent(studentId) {
     document.querySelectorAll('.student-item').forEach(item => {
         item.classList.remove('selected');
     });
-    event.currentTarget.classList.add('selected');
+    const targetItem = document.querySelector(`.student-item[onclick="selectStudent('${studentId}')"]`);
+    if (targetItem) targetItem.classList.add('selected');
 
     // 显示学生信息和操作表单
     const infoContainer = document.getElementById('selectedStudentInfo');
@@ -677,10 +718,11 @@ async function adjustPoints(isAdd) {
         });
 
         // 更新本地学生数据
-        selectedStudent.balance = response.newBalance;
+        const newBalance = response.data ? response.data.newBalance : response.newBalance;
+        selectedStudent.balance = newBalance;
         const studentIndex = students.findIndex(s => s.id === selectedStudent.id);
         if (studentIndex !== -1) {
-            students[studentIndex].balance = response.newBalance;
+            students[studentIndex].balance = newBalance;
         }
 
         // 刷新显示
@@ -1579,8 +1621,7 @@ function formatFileSize(bytes) {
 
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
-//
-显示需要登录的状态界面
+// 显示需要登录的状态界面
 function showLoginRequiredState() {
     const container = document.getElementById('teacherContent');
     if (container) {
@@ -1662,5 +1703,675 @@ function enableAllControls() {
     document.querySelectorAll('input, button, select, textarea').forEach(element => {
         element.disabled = false;
         element.style.opacity = '1';
+    });
+}
+
+// ====== 学生管理 ======
+
+function initStudentsManagement() {
+    renderStudentsList();
+}
+
+function renderStudentsManagement() {
+    return `
+        <h2>学生管理</h2>
+        <div class="product-management">
+            <div class="product-form">
+                <h3>添加/编辑学生</h3>
+                <form id="studentForm" onsubmit="saveStudent(event)">
+                    <input type="hidden" id="editStudentId">
+                    
+                    <div class="form-group">
+                        <label>学号:</label>
+                        <input type="text" id="studentId" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>姓名:</label>
+                        <input type="text" id="studentName" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>班级:</label>
+                        <input type="text" id="studentClass" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>初始积分:</label>
+                        <input type="number" id="studentBalance" min="0" value="0" required>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" id="saveStudentBtn">保存学生</button>
+                        <button type="button" onclick="resetStudentForm()">重置</button>
+                    </div>
+                </form>
+            </div>
+            
+            <div class="product-list">
+                <h3>学生列表</h3>
+                <div id="studentsManagementList">
+                    <!-- 学生列表将在这里动态生成 -->
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderStudentsList() {
+    const container = document.getElementById('studentsManagementList');
+    if (!container) return;
+
+    if (students.length === 0) {
+        container.innerHTML = '<div class="no-data">暂无学生数据</div>';
+        return;
+    }
+
+    container.innerHTML = students.map(student => `
+        <div class="product-item">
+            <div class="product-info">
+                <div class="product-name">${student.name} (${student.id})</div>
+                <div class="product-details">
+                    班级: ${student.class || '-'} | 积分: ${student.balance || 0}分
+                </div>
+            </div>
+            <div class="product-actions">
+                <button class="edit-btn" onclick="editStudent('${student.id}')">编辑</button>
+                <button class="delete-btn" onclick="deleteStudent('${student.id}')">删除</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function saveStudent(event) {
+    event.preventDefault();
+
+    const editId = document.getElementById('editStudentId').value;
+    const id = document.getElementById('studentId').value.trim();
+    const name = document.getElementById('studentName').value.trim();
+    const className = document.getElementById('studentClass').value.trim();
+    const balance = parseInt(document.getElementById('studentBalance').value) || 0;
+
+    if (!id || !name || !className || balance < 0) {
+        showMessage('请填写有效的学生信息', 'warning');
+        return;
+    }
+
+    try {
+        const isEdit = !!editId;
+        const endpoint = isEdit ? `/api/students/${id}` : '/api/students';
+        const method = isEdit ? 'PUT' : 'POST';
+
+        const response = await apiRequest(endpoint, {
+            method: method,
+            body: JSON.stringify({
+                id: id,
+                name: name,
+                class: className,
+                balance: balance
+            })
+        });
+
+        const studentData = response.data?.student || response.student;
+        if (isEdit) {
+            const index = students.findIndex(s => s.id === id);
+            if (index !== -1) {
+                // preserve balance if not explicitly updated via API return
+                students[index] = { ...students[index], ...studentData };
+            }
+        } else {
+            students.push(studentData);
+        }
+
+        renderStudentsList();
+        resetStudentForm();
+        if (document.getElementById('studentList')) renderStudentList();
+
+        showMessage(`学生${isEdit ? '更新' : '添加'}成功`, 'success');
+
+    } catch (error) {
+        console.error('保存学生失败:', error);
+        showMessage('保存学生失败: ' + (error.message || ''), 'error');
+    }
+}
+
+function editStudent(studentId) {
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+
+    document.getElementById('editStudentId').value = student.id;
+    document.getElementById('studentId').value = student.id;
+    document.getElementById('studentId').disabled = true;
+    document.getElementById('studentName').value = student.name;
+    document.getElementById('studentClass').value = student.class || '';
+    document.getElementById('studentBalance').value = student.balance || 0;
+    if (student.balance !== undefined) {
+        document.getElementById('studentBalance').disabled = true; // prevent editing balance directly when editing student
+    }
+
+    document.getElementById('saveStudentBtn').textContent = '更新学生';
+}
+
+async function deleteStudent(studentId) {
+    if (!confirm('确定要删除这个学生吗？所有积分记录也将被删除！')) return;
+
+    try {
+        await apiRequest(`/api/students/${studentId}`, {
+            method: 'DELETE'
+        });
+
+        students = students.filter(s => s.id !== studentId);
+
+        renderStudentsList();
+        if (document.getElementById('studentList')) renderStudentList();
+
+        showMessage('学生删除成功', 'success');
+
+    } catch (error) {
+        console.error('删除学生失败:', error);
+        showMessage('删除学生失败，请重试', 'error');
+    }
+}
+
+function resetStudentForm() {
+    const form = document.getElementById('studentForm');
+    if (form) form.reset();
+    document.getElementById('editStudentId').value = '';
+    document.getElementById('studentId').disabled = false;
+    document.getElementById('studentBalance').disabled = false;
+    document.getElementById('saveStudentBtn').textContent = '保存学生';
+}
+// ==================== 学期管理 ====================
+
+function renderSemestersManagement() {
+    return `
+        <div class="management-section">
+            <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2>学期管理</h2>
+                <button class="action-btn add-btn" onclick="showSemesterModal()">
+                    <span class="icon">＋</span> 新增学期
+                </button>
+            </div>
+            
+            <div class="semesters-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>学期名称</th>
+                            <th>开始日期</th>
+                            <th>结束日期</th>
+                            <th>状态</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="semestersListBody">
+                        <tr><td colspan="5" style="text-align: center;">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="archive-hints" style="margin-top:20px; padding:15px; background:#fff3cd; border:1px solid #ffeeba; border-radius:4px; color:#856404;">
+                <h4>⚠️ 激活新学期说明</h4>
+                <p>1. 点击“设为当前学期”将把该学期变成活动状态。</p>
+                <p>2. 此操作将会<b>结算并封存</b>目前所有学生的总积分到旧学期档案中。</p>
+                <p>3. 此操作将会<b>清零</b>所有学生的现有积分。</p>
+                <p>4. 随后，系统会根据刚刚的结界排名，为所有学生自动发放新学期的初始阶梯积分（前10名+40分，11-20名+30分，21-30名+20分，30名以后+10分）。</p>
+                <p>注意：此操作不可逆，请在真实的新老学期交接时使用！</p>
+            </div>
+        </div>
+
+        <!-- 学期表单弹窗 -->
+        <div id="semesterModal" class="modal" style="display: none;">
+            <div class="modal-content" style="max-width: 500px;">
+                <h3 id="semesterModalTitle">新增学期</h3>
+                <form id="semesterForm" onsubmit="handleSemesterSubmit(event)">
+                    <input type="hidden" id="semesterId">
+                    <div class="form-group">
+                        <label for="semesterName">学期名称:</label>
+                        <input type="text" id="semesterName" required placeholder="例如：2026年春季学期">
+                    </div>
+                    <div class="form-group">
+                        <label for="semesterStartDate">开始日期:</label>
+                        <input type="date" id="semesterStartDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="semesterEndDate">结束日期:</label>
+                        <input type="date" id="semesterEndDate" required>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" class="submit-btn">保存</button>
+                        <button type="button" class="cancel-btn" onclick="hideSemesterModal()">取消</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+}
+
+async function initSemesterPanel() {
+    await loadSemestersList();
+}
+
+async function loadSemestersList() {
+    const listBody = document.getElementById('semestersListBody');
+    if (!listBody) return;
+    
+    try {
+        const response = await apiRequest('/api/semesters');
+        const semesters = response.data || [];
+        
+        if (semesters.length === 0) {
+            listBody.innerHTML = '<tr><td colspan="5" style="text-align: center;">暂无学期数据</td></tr>';
+            return;
+        }
+
+        listBody.innerHTML = semesters.map(sem => {
+            const startDate = new Date(sem.startDate).toLocaleDateString();
+            const endDate = new Date(sem.endDate).toLocaleDateString();
+            const statusHtml = sem.isCurrent 
+                ? `<span class="status-badge active" style="background-color: #d4edda; color: #155724; padding: 4px 8px; border-radius: 4px;">当前学期</span>`
+                : `<span class="status-badge inactive" style="background-color: #e2e3e5; color: #383d41; padding: 4px 8px; border-radius: 4px;">未激活</span>`;
+                
+            const actionHtml = sem.isCurrent
+                ? `<button class="action-btn edit" onclick="editSemester('${sem.id}')">编辑</button>`
+                : `
+                   <button class="action-btn edit" onclick="editSemester('${sem.id}')">编辑</button>
+                   <button class="action-btn text-warning" style="background-color: #ffc107; color: #000; margin-left: 5px;" onclick="activateSemesterPrompt('${sem.id}', '${sem.name}')">设为当前学期</button>
+                  `;
+
+            return `
+                <tr>
+                    <td>${sem.name}</td>
+                    <td>${startDate}</td>
+                    <td>${endDate}</td>
+                    <td>${statusHtml}</td>
+                    <td>${actionHtml}</td>
+                </tr>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error('获取学期列表失败:', error);
+        listBody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: red;">加载失败，请重试</td></tr>';
+    }
+}
+
+function showSemesterModal() {
+    document.getElementById('semesterModalTitle').textContent = '新增学期';
+    document.getElementById('semesterForm').reset();
+    document.getElementById('semesterId').value = '';
+    
+    // 设置默认日期
+    const now = new Date();
+    document.getElementById('semesterStartDate').value = now.toISOString().split('T')[0];
+    
+    const end = new Date();
+    end.setMonth(end.getMonth() + 5);
+    document.getElementById('semesterEndDate').value = end.toISOString().split('T')[0];
+    
+    document.getElementById('semesterModal').style.display = 'flex';
+}
+
+function hideSemesterModal() {
+    document.getElementById('semesterModal').style.display = 'none';
+}
+
+async function editSemester(id) {
+    try {
+        const response = await apiRequest('/api/semesters');
+        const semesters = response.data || [];
+        const sem = semesters.find(s => s.id === id);
+        if (!sem) return;
+
+        document.getElementById('semesterModalTitle').textContent = '编辑学期';
+        document.getElementById('semesterId').value = sem.id;
+        document.getElementById('semesterName').value = sem.name;
+        document.getElementById('semesterStartDate').value = sem.startDate.split('T')[0];
+        document.getElementById('semesterEndDate').value = sem.endDate.split('T')[0];
+        
+        document.getElementById('semesterModal').style.display = 'flex';
+    } catch (e) {
+        showMessage('无法获取学期信息', 'error');
+    }
+}
+
+async function handleSemesterSubmit(event) {
+    event.preventDefault();
+    
+    const id = document.getElementById('semesterId').value;
+    const name = document.getElementById('semesterName').value.trim();
+    const startDate = document.getElementById('semesterStartDate').value;
+    const endDate = document.getElementById('semesterEndDate').value;
+    
+    if (!name || !startDate || !endDate) {
+        showMessage('请填写完整信息', 'warning');
+        return;
+    }
+
+    try {
+        const payload = { 
+            name, 
+            startDate: new Date(startDate).toISOString(), 
+            endDate: new Date(endDate).toISOString() 
+        };
+        
+        if (id) {
+            await apiRequest(`/api/semesters/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify(payload)
+            });
+            showMessage('学期更新成功', 'success');
+        } else {
+            await apiRequest('/api/semesters', {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+            showMessage('学期创建成功', 'success');
+        }
+        
+        hideSemesterModal();
+        loadSemestersList();
+    } catch (error) {
+        showMessage('操作失败: ' + error.message, 'error');
+    }
+}
+
+async function activateSemesterPrompt(id, name) {
+    const confirmMsg = `⚠️ 危险操作警告：\n您正在尝试将【${name}】设为当前学期。\n此操作会结算并封存这学期所有学生的现有积分，然后统一重置发放入学奖励！\n\n如果您确定这是新老学期交接时刻，请点击“确定”继续。不可逆转！`;
+
+    showConfirmModal(confirmMsg, async () => {
+        try {
+            const response = await apiRequest(`/api/semesters/${id}/activate`, {
+                method: 'POST'
+            });
+            showMessage(response.message || '学期激活成功并已完成数据结算！', 'success');
+            loadSemestersList();
+            
+            // 刷新学生和积分相关数据缓存
+            if(typeof renderStudentList === 'function') renderStudentList();
+            
+            // 强制刷新整个页面以重新加载图表等缓存
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } catch (error) {
+            showMessage('激活失败: ' + error.message, 'error');
+        }
+    });
+}
+
+// ==================== 自助修改密码功能 ====================
+
+function showChangePasswordModal() {
+    document.getElementById('changePasswordForm').reset();
+    document.getElementById('changePasswordModal').style.display = 'flex';
+}
+
+function hideChangePasswordModal() {
+    document.getElementById('changePasswordModal').style.display = 'none';
+}
+
+async function handleChangePasswordSubmit(event) {
+    event.preventDefault();
+    
+    const oldPassword = document.getElementById('oldPassword').value;
+    const newPassword = document.getElementById('newPassword').value;
+    const confirmNewPassword = document.getElementById('confirmNewPassword').value;
+
+    if (newPassword !== confirmNewPassword) {
+        showMessage('两次填写的密码不一致', 'error');
+        return;
+    }
+
+    if (newPassword.length < 3) {
+        showMessage('新密码长度不能少于3位', 'warning');
+        return;
+    }
+
+    try {
+        await apiRequest('/api/auth/change-password', {
+            method: 'POST',
+            body: JSON.stringify({ oldPassword, newPassword })
+        });
+        
+        showMessage('密码修改成功，请重新登录', 'success');
+        hideChangePasswordModal();
+        
+        // 修改密码后需要重新登录
+        setTimeout(() => {
+            handleLogout();
+        }, 1500);
+    } catch (error) {
+        showMessage('修改密码失败: ' + error.message, 'error');
+    }
+}
+
+// ==================== 教师管理系统功能 ====================
+
+function renderTeachersManagement() {
+    return `
+        <div class="management-header">
+            <h3>教师与管理员账号列表</h3>
+            <button class="add-btn" onclick="showTeacherModal()">新增教师</button>
+        </div>
+        <div class="teacher-list-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>工号/账号</th>
+                        <th>姓名</th>
+                        <th>角色</th>
+                        <th>部门</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="teachersTableBody">
+                    <tr><td colspan="6" class="loading-cell">加载中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+async function loadTeachersList() {
+    const tbody = document.getElementById('teachersTableBody');
+    if (!tbody) return;
+
+    try {
+        const response = await apiRequest('/api/teachers');
+        const teachers = response.data.teachers || [];
+        
+        const currentUser = storage.get('currentTeacher') || {};
+
+        if (teachers.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="empty-cell">暂无教师数据</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = teachers.map(t => {
+            const isDirector = t.role === 'director';
+            const roleName = isDirector ? '班主任' : (t.role === 'admin' ? '管理员' : '普通教师');
+            
+            // 当前登录人是 admin 则可以设置班主任，但不能自己设自己，也不能操作 admin
+            let setDirectorBtn = '';
+            if (currentUser.role === 'admin' && t.role === 'teacher') {
+                setDirectorBtn = `<button class="action-btn small highlight" onclick="setAsDirector('${t.id}', '${t.name}')">设为班主任</button>`;
+            } else if (currentUser.role === 'admin' && t.role === 'director') {
+                setDirectorBtn = `<button class="action-btn small danger" onclick="revokeDirector('${t.id}', '${t.name}')">撤销班主任</button>`;
+            }
+
+            // Admin 账号不可在界面上编辑、重置密码或删除
+            let actionButtons = '';
+            if (t.role !== 'admin') {
+                actionButtons = `
+                    <button class="action-btn small" onclick="editTeacher('${t.id}')">编辑</button>
+                    <button class="action-btn small warning" onclick="resetTeacherPasswordPrompt('${t.id}', '${t.name}')">重置密码</button>
+                    ${setDirectorBtn}
+                    <button class="action-btn small danger" onclick="deleteTeacher('${t.id}', '${t.name}')">删除</button>
+                `;
+            }
+
+            return `
+            <tr>
+                <td>${t.id}</td>
+                <td>${t.name}</td>
+                <td><span class="role-badge ${t.role}">${roleName}</span></td>
+                <td>${t.department || '-'}</td>
+                <td>${t.isActive ? '<span class="status-active">正常</span>' : '<span class="status-inactive">停用</span>'}</td>
+                <td>
+                    ${actionButtons}
+                </td>
+            </tr>
+        `}).join('');
+    } catch (error) {
+        tbody.innerHTML = `<tr><td colspan="6" class="error-cell">加载异常: ${error.message}</td></tr>`;
+    }
+}
+
+function showTeacherModal(id = null) {
+    document.getElementById('teacherForm').reset();
+    document.getElementById('teacherOriginalId').value = '';
+    
+    // 如果是新增，可以配置密码，如果编辑，则密码不在这个表单里处理(统一通过重置)
+    const passwordGroup = document.getElementById('teacherPasswordGroup');
+    const idInput = document.getElementById('formTeacherId');
+
+    if (!id) {
+        document.getElementById('teacherModalTitle').textContent = '新增教师';
+        passwordGroup.style.display = 'block';
+        idInput.disabled = false;
+        document.getElementById('teacherModal').style.display = 'flex';
+    }
+}
+
+function hideTeacherModal() {
+    document.getElementById('teacherModal').style.display = 'none';
+}
+
+async function editTeacher(id) {
+    try {
+        const response = await apiRequest('/api/teachers');
+        const teachers = response.data.teachers || [];
+        const t = teachers.find(item => item.id === id);
+        
+        if (!t) return;
+
+        document.getElementById('teacherModalTitle').textContent = '编辑教师信息';
+        document.getElementById('teacherOriginalId').value = t.id;
+        
+        const idInput = document.getElementById('formTeacherId');
+        idInput.value = t.id;
+        idInput.disabled = true; // 编辑时不允许改ID
+
+        document.getElementById('formTeacherName').value = t.name;
+        document.getElementById('formTeacherDepartment').value = t.department || '';
+        
+        // 隐藏密码输入框，通过“重置密码”功能单独改
+        document.getElementById('teacherPasswordGroup').style.display = 'none';
+        
+        document.getElementById('teacherModal').style.display = 'flex';
+    } catch (error) {
+        showMessage('获取信息失败', 'error');
+    }
+}
+
+async function handleTeacherSubmit(event) {
+    event.preventDefault();
+    
+    const originalId = document.getElementById('teacherOriginalId').value;
+    const isEdit = !!originalId;
+    
+    const id = document.getElementById('formTeacherId').value.trim();
+    const name = document.getElementById('formTeacherName').value.trim();
+    const department = document.getElementById('formTeacherDepartment').value.trim();
+    const password = document.getElementById('formTeacherPassword').value.trim();
+
+    if (!id || !name) {
+        showMessage('学工号和姓名不能为空', 'warning');
+        return;
+    }
+
+    try {
+        let payload = { id, name, department };
+        
+        if (!isEdit) {
+            payload.password = password || 'teacher123';
+            payload.role = 'teacher'; // 默认新建都是 teacher
+            
+            await apiRequest('/api/teachers', {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+            showMessage('新增成功', 'success');
+        } else {
+            // Edit
+            await apiRequest(`/api/teachers/${originalId}`, {
+                method: 'PUT',
+                body: JSON.stringify({ name, department })
+            });
+            showMessage('编辑成功', 'success');
+        }
+        
+        hideTeacherModal();
+        loadTeachersList();
+    } catch (e) {
+        showMessage('操作失败: ' + e.message, 'error');
+    }
+}
+
+async function deleteTeacher(id, name) {
+    showConfirmModal(`确定要删除教师【${name}】吗？删除后此账号不可登录！`, async () => {
+        try {
+            await apiRequest(`/api/teachers/${id}`, { method: 'DELETE' });
+            showMessage('删除成功', 'success');
+            loadTeachersList();
+        } catch (e) {
+            showMessage(e.message, 'error');
+        }
+    });
+}
+
+async function resetTeacherPasswordPrompt(id, name) {
+    showConfirmModal(`确定要强行将教师【${name}】的密码重置为 teacher123 吗？`, async () => {
+        try {
+            await apiRequest(`/api/teachers/${id}/reset-password`, {
+                method: 'POST',
+                body: JSON.stringify({ newPassword: 'teacher123' })
+            });
+            showMessage('密码已成功重置为 teacher123', 'success');
+        } catch (e) {
+            showMessage(e.message, 'error');
+        }
+    });
+}
+
+async function setAsDirector(id, name) {
+    showConfirmModal(`确定将教师【${name}】设为班主任吗？`, async () => {
+        try {
+            await apiRequest(`/api/teachers/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify({ role: 'director' })
+            });
+            showMessage(`【${name}】已成功被设为班主任！`, 'success');
+            loadTeachersList();
+        } catch(e) {
+            showMessage(e.message, 'error');
+        }
+    });
+}
+
+async function revokeDirector(id, name) {
+    showConfirmModal(`确定撤销【${name}】的班主任职务吗？撤销后将成为普通教师。`, async () => {
+        try {
+            await apiRequest(`/api/teachers/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify({ role: 'teacher' })
+            });
+            showMessage(`【${name}】已被撤销班主任职务！`, 'success');
+            loadTeachersList();
+        } catch(e) {
+            showMessage(e.message, 'error');
+        }
     });
 }

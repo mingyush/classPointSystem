@@ -21,28 +21,31 @@
 const express = require('express');
 const path = require('path');
 const DataInitializer = require('./utils/dataInitializer');
-const { errorHandler, notFoundHandler, errorLogger, performanceMonitor } = require('./middleware/errorHandler');
+const { errorHandler, notFoundHandler, errorLogger, performanceMonitor, rateLimiter } = require('./middleware/errorHandler');
 
 // 创建Express应用实例
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ==================== 数据初始化 ====================
-/**
- * 初始化系统数据文件
- * 确保所有必要的JSON数据文件存在并包含默认数据
- */
-const dataInitializer = new DataInitializer();
-dataInitializer.initializeAllData().catch(console.error);
+async function startServer() {
+    try {
+        console.log('开始初始化系统数据...');
+        const dataInitializer = new DataInitializer();
+        await dataInitializer.initializeAllData();
+        console.log('系统数据初始化完成');
 
-// ==================== 中间件配置 ====================
-/**
- * 配置请求体解析中间件
- * - 支持JSON格式数据，最大10MB
- * - 支持URL编码数据，最大10MB
- */
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+        // ==================== 中间件配置 ====================
+        /**
+         * 配置请求体解析中间件
+         * - 支持JSON格式数据，最大10MB
+         * - 支持URL编码数据，最大10MB
+         */
+        app.use(express.json({ limit: '10mb' }));
+        app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// 忽略对 favicon.ico 的请求，避免抛出 404 错误并污染日志
+app.get('/favicon.ico', (req, res) => res.status(204).end());
 
 /**
  * 性能监控中间件
@@ -96,14 +99,20 @@ const { router: sseRouter, broadcastSSEMessage } = require('./api/sse');
 sseService.setBroadcastFunction(broadcastSSEMessage);
 
 // API路由
+// 登录接口限流保护（每IP每分钟最多20次）
+app.use('/api/auth', rateLimiter(20, 60000));
+
 app.use('/api/auth', require('./api/auth'));
+app.use('/api/teachers', require('./api/teachers'));
 app.use('/api/points', require('./api/points'));
 app.use('/api/students', require('./api/students'));
 app.use('/api/products', require('./api/products'));
 app.use('/api/orders', require('./api/orders'));
 app.use('/api/config', require('./api/config'));
+app.use('/api/semesters', require('./api/semesters'));
 app.use('/api/backup', require('./api/backup'));
 app.use('/api/logs', require('./api/logs'));
+app.use('/api/feedback', require('./api/feedback'));
 app.use('/api/sse', sseRouter);
 
 // 主页路由
@@ -174,16 +183,23 @@ if (process.env.NODE_ENV === 'development') {
 // 404处理中间件
 app.use(notFoundHandler);
 
-// 统一错误处理中间件（必须放在最后）
-app.use(errorHandler);
+        // 统一错误处理中间件（必须放在最后）
+        app.use(errorHandler);
 
-// 启动服务器
-app.listen(PORT, () => {
-    console.log(`班级积分管理系统已启动`);
-    console.log(`服务器运行在: http://localhost:${PORT}`);
-    console.log(`大屏展示: http://localhost:${PORT}/display`);
-    console.log(`教师管理: http://localhost:${PORT}/teacher`);
-    console.log(`学生查询: http://localhost:${PORT}/student`);
-});
+        // 启动服务器
+        app.listen(PORT, () => {
+            console.log(`班级积分管理系统已启动`);
+            console.log(`服务器运行在: http://localhost:${PORT}`);
+            console.log(`大屏展示: http://localhost:${PORT}/display`);
+            console.log(`教师管理: http://localhost:${PORT}/teacher`);
+            console.log(`学生查询: http://localhost:${PORT}/student`);
+        });
+    } catch (error) {
+        console.error('服务器启动失败:', error);
+        process.exit(1);
+    }
+}
+
+startServer();
 
 module.exports = app;

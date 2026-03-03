@@ -54,7 +54,7 @@ fi
 NODE_VERSION=$(node --version | cut -d'v' -f2)
 REQUIRED_VERSION="14.0.0"
 
-if ! node -e "process.exit(require('semver').gte('$NODE_VERSION', '$REQUIRED_VERSION') ? 0 : 1)" 2>/dev/null; then
+if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$NODE_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]; then
     log_error "Node.js 版本过低。当前版本: $NODE_VERSION，要求版本: $REQUIRED_VERSION 或更高。"
     exit 1
 fi

@@ -192,6 +192,48 @@ const storage = {
     }
 };
 
+// 统一的自定义确认弹窗 (替代 window.confirm)
+function showConfirmModal(message, onConfirm) {
+    // 移除已存在的
+    const existingModal = document.getElementById('customConfirmModal');
+    if (existingModal) existingModal.remove();
+
+    const confirmModal = document.createElement('div');
+    confirmModal.id = 'customConfirmModal';
+    confirmModal.className = 'modal confirm-modal';
+    
+    // 如果 message 包含换行，替换为 br
+    const formattedMessage = message.replace(/\n/g, '<br>');
+
+    confirmModal.innerHTML = `
+        <div class="modal-content" style="max-width: 400px; text-align: center;">
+            <h3 style="margin-top: 0; color: #333;">确认操作</h3>
+            <p style="margin: 20px 0; color: #666; font-size: 16px; line-height: 1.5;">${formattedMessage}</p>
+            <div class="form-actions" style="justify-content: center; gap: 15px; margin-top: 25px;">
+                <button id="customConfirmYes" class="submit-btn" style="background: #e74c3c; border-color: #e74c3c; color: white;">确认</button>
+                <button id="customConfirmNo" class="cancel-btn" style="background: #f8f9fa; border: 1px solid #ddd; color: #333;">取消</button>
+            </div>
+        </div>
+    `;
+    
+    confirmModal.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.5); display: flex;
+        justify-content: center; align-items: center; z-index: 3000;
+    `;
+    
+    document.body.appendChild(confirmModal);
+    
+    document.getElementById('customConfirmYes').onclick = () => {
+        confirmModal.remove();
+        if (typeof onConfirm === 'function') onConfirm();
+    };
+    
+    document.getElementById('customConfirmNo').onclick = () => {
+        confirmModal.remove();
+    };
+}
+
 // 显示教师登录弹窗
 function showTeacherLogin() {
     // 创建登录弹窗
