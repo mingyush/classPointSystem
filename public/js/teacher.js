@@ -706,6 +706,21 @@ async function adjustPoints(isAdd) {
         return;
     }
 
+    const addButton = document.querySelector('.add-points');
+    const subButton = document.querySelector('.subtract-points');
+    const originalAddText = addButton ? addButton.textContent : '加分';
+    const originalSubText = subButton ? subButton.textContent : '减分';
+
+    // 禁用按钮并显示加载状态
+    if (addButton) {
+        addButton.disabled = true;
+        if (isAdd) addButton.textContent = '处理中...';
+    }
+    if (subButton) {
+        subButton.disabled = true;
+        if (!isAdd) subButton.textContent = '处理中...';
+    }
+
     try {
         const endpoint = isAdd ? '/api/points/add' : '/api/points/subtract';
         const response = await apiRequest(endpoint, {
@@ -725,8 +740,15 @@ async function adjustPoints(isAdd) {
             students[studentIndex].balance = newBalance;
         }
 
-        // 刷新显示
-        renderStudentList();
+        // 刷新显示，保留搜索关键字
+        const searchInput = document.getElementById('studentSearch');
+        const searchTerm = searchInput ? searchInput.value.trim() : '';
+        if (searchTerm) {
+            filterStudents(searchTerm);
+        } else {
+            renderStudentList();
+        }
+        
         selectStudent(selectedStudent.id);
         loadRecentOperations();
 
@@ -737,7 +759,18 @@ async function adjustPoints(isAdd) {
 
     } catch (error) {
         console.error('积分操作失败:', error);
-        showMessage('积分操作失败，请重试', 'error');
+        // 使用服务器返回的具体错误信息，如果没有则使用默认提示
+        showMessage(error.message || '积分操作失败，请重试', 'error');
+    } finally {
+        // 恢复按钮状态
+        if (addButton) {
+            addButton.disabled = false;
+            addButton.textContent = originalAddText;
+        }
+        if (subButton) {
+            subButton.disabled = false;
+            subButton.textContent = originalSubText;
+        }
     }
 }
 
