@@ -180,6 +180,37 @@ router.post('/logout', (req, res) => {
 });
 
 /**
+ * 修改密码接口
+ * 供已登录的教师修改自己的密码
+ */
+router.post('/change-password', authenticateToken, requireTeacher, async (req, res) => {
+    try {
+        const { oldPassword, newPassword } = req.body;
+        
+        if (!oldPassword || !newPassword) {
+            return res.status(400).json({
+                success: false,
+                message: '必须提供原密码和新密码'
+            });
+        }
+        
+        // 调用teacherService更新密码
+        await teacherService.changePassword(req.user.userId, oldPassword, newPassword);
+        
+        res.json({
+            success: true,
+            message: '密码修改成功'
+        });
+    } catch (error) {
+        console.error('修改密码失败:', error);
+        res.status(400).json({
+            success: false,
+            message: error.message || '修改密码失败，请原密码是否正确'
+        });
+    }
+});
+
+/**
  * JWT认证中间件
  * 验证请求中的JWT令牌
  */

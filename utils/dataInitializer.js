@@ -105,8 +105,7 @@ class DataInitializer {
      */
     async initializeTeachers() {
         const defaultTeachers = [
-            { id: '8001', name: '管理员', password: 'admin123', role: 'admin', department: '系统管理', isActive: true },
-            { id: '8002', name: '班主任', password: 'teacher123', role: 'teacher', department: '教学部', isActive: true }
+            { id: '8001', name: '班主任', password: 't123', role: 'director', department: '教学部', isActive: true }
         ];
 
         for (const teacherData of defaultTeachers) {

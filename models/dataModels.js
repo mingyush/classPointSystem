@@ -340,7 +340,7 @@ class Teacher {
      */
     validate() {
         const errors = [];
-        const validRoles = ['teacher', 'admin'];
+        const validRoles = ['teacher', 'director', 'admin'];
 
         if (!this.id || typeof this.id !== 'string') {
             errors.push('教师ID不能为空且必须为字符串');
@@ -395,11 +395,111 @@ class Teacher {
     }
 }
 
+/**
+ * 学期信息模型
+ */
+class Semester {
+    constructor(data = {}) {
+        this.id = data.id || '';
+        this.name = data.name || '';
+        this.startDate = data.startDate || new Date().toISOString();
+        this.endDate = data.endDate || new Date().toISOString();
+        this.isCurrent = data.isCurrent !== undefined ? data.isCurrent : false;
+        this.createdAt = data.createdAt || new Date().toISOString();
+    }
+
+    validate() {
+        const errors = [];
+
+        if (!this.name || typeof this.name !== 'string') {
+            errors.push('学期名称不能为空且必须为字符串');
+        }
+
+        if (!this.startDate) {
+            errors.push('学期开始日期不能为空');
+        }
+
+        if (!this.endDate) {
+            errors.push('学期结束日期不能为空');
+        }
+
+        if (typeof this.isCurrent !== 'boolean') {
+            errors.push('当前学期标识必须为布尔值');
+        }
+
+        return {
+            isValid: errors.length === 0,
+            errors
+        };
+    }
+
+    toJSON() {
+        return {
+            id: this.id,
+            name: this.name,
+            startDate: this.startDate,
+            endDate: this.endDate,
+            isCurrent: this.isCurrent,
+            createdAt: this.createdAt
+        };
+    }
+}
+
+/**
+ * 学期归档记录模型
+ */
+class SemesterArchive {
+    constructor(data = {}) {
+        this.id = data.id || '';
+        this.semesterId = data.semesterId || '';
+        this.studentId = data.studentId || '';
+        this.finalBalance = data.finalBalance || 0;
+        this.finalRank = data.finalRank || 0;
+    }
+
+    validate() {
+        const errors = [];
+
+        if (!this.semesterId || typeof this.semesterId !== 'string') {
+            errors.push('学期ID不能为空且必须为字符串');
+        }
+        
+        if (!this.studentId || typeof this.studentId !== 'string') {
+            errors.push('学生ID不能为空且必须为字符串');
+        }
+
+        if (typeof this.finalBalance !== 'number') {
+            errors.push('最终积分必须为数字');
+        }
+
+        if (typeof this.finalRank !== 'number' || this.finalRank <= 0) {
+            errors.push('最终排名必须为正整数');
+        }
+
+        return {
+            isValid: errors.length === 0,
+            errors
+        };
+    }
+
+    toJSON() {
+        return {
+            id: this.id,
+            semesterId: this.semesterId,
+            studentId: this.studentId,
+            finalBalance: this.finalBalance,
+            finalRank: this.finalRank
+        };
+    }
+}
+
 module.exports = {
     StudentInfo,
     PointRecord,
     Product,
     Order,
     SystemConfig,
-    Teacher
+    Teacher,
+    Semester,
+    SemesterArchive
 };

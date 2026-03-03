@@ -13,6 +13,7 @@ class DataAccess {
         this.databasePath = path.join(dataDir, 'database.sqlite');
         this.db = null;
         this.initialized = false;
+        this._initPromise = null;
 
         // 性能监控
         this.metrics = {
@@ -44,19 +45,37 @@ class DataAccess {
      */
     async ensureDirectories() {
         if (this.initialized) return;
+        if (this._initPromise) return this._initPromise;
 
-        // 创建目录
-        await fs.mkdir(this.dataDir, { recursive: true });
+        this._initPromise = (async () => {
+            // 创建目录
+            await fs.mkdir(this.dataDir, { recursive: true });
         await fs.mkdir(this.backupDir, { recursive: true });
 
         // 创建数据库连接
         if (!this.db) {
+            console.log('Connecting to SQLite at: ', this.databasePath);
             this.db = await new Promise((resolve, reject) => {
                 const db = new sqlite3.Database(this.databasePath, error => {
+                    console.log('SQLite connection callback hit. Error:', error);
                     if (error) reject(error);
-                    else resolve(db);
+                    else {
+                        // 避免 SQLITE_BUSY: 增加等待时间，并可以考虑后续改为 WAL
+                        db.configure('busyTimeout', 5000);
+                        resolve(db);
+                    }
                 });
             });
+            console.log('Applying PRAGMAs');
+            try {
+                console.log('Running PRAGMA journal_mode = WAL');
+                await this._runRaw('PRAGMA journal_mode = WAL');
+                console.log('Running PRAGMA synchronous = NORMAL');
+                await this._runRaw('PRAGMA synchronous = NORMAL');
+                console.log('PRAGMAs Applied');
+            } catch(e) {
+                console.error("PRAGMA error", e);
+            }
         }
 
         // 创建表结构
@@ -65,43 +84,53 @@ class DataAccess {
         // 迁移旧数据
         await this._migrateLegacyData();
 
-        this.initialized = true;
+            // 确保默认学期存在
+            await this._ensureDefaultSemester();
+
+            this.initialized = true;
+        })();
+        
+        await this._initPromise;
     }
 
     /**
      * 创建数据库表
      */
     async _createTables() {
-        // 启用外键约束
-        await this._runRaw('PRAGMA foreign_keys = ON');
+        console.log('Starting _createTables...');
+        try {
+            // 启用外键约束
+            console.log('Enabling PRAGMA foreign_keys');
+            await this._runRaw('PRAGMA foreign_keys = ON');
 
-        // 学生表
-        await this._runRaw(`
-            CREATE TABLE IF NOT EXISTS students (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                class TEXT NOT NULL,
-                balance INTEGER DEFAULT 0,
-                created_at TEXT NOT NULL
-            )
-        `);
+            // 学生表
+            console.log('Creating students table');
+            await this._runRaw(`
+                CREATE TABLE IF NOT EXISTS students (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    class TEXT NOT NULL,
+                    balance INTEGER DEFAULT 0,
+                    created_at TEXT NOT NULL
+                )
+            `);
 
-        // 积分记录表
-        await this._runRaw(`
-            CREATE TABLE IF NOT EXISTS point_records (
-                id TEXT PRIMARY KEY,
-                student_id TEXT NOT NULL,
-                points INTEGER NOT NULL,
-                reason TEXT NOT NULL,
-                operator_id TEXT,
-                timestamp TEXT NOT NULL,
-                type TEXT NOT NULL,
-                FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
-            )
-        `);
+            // 积分记录表
+            console.log('Creating point_records table');
+            await this._runRaw(`
+                CREATE TABLE IF NOT EXISTS point_records (
+                    id TEXT PRIMARY KEY,
+                    student_id TEXT NOT NULL,
+                    points INTEGER NOT NULL,
+                    reason TEXT NOT NULL,
+                    operator_id TEXT,
+                    timestamp TEXT NOT NULL,
+                    type TEXT NOT NULL DEFAULT 'add',
+                    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+                )
+            `);
 
-        // 商品表
-        await this._runRaw(`
+            await this._runRaw(`
             CREATE TABLE IF NOT EXISTS products (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -113,8 +142,10 @@ class DataAccess {
                 created_at TEXT NOT NULL
             )
         `);
+        console.log('Created products table');
 
         // 订单表
+        console.log('Creating orders table');
         await this._runRaw(`
             CREATE TABLE IF NOT EXISTS orders (
                 id TEXT PRIMARY KEY,
@@ -128,8 +159,10 @@ class DataAccess {
                 FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
             )
         `);
+        console.log('Created orders table');
 
         // 教师表
+        console.log('Creating teachers table');
         await this._runRaw(`
             CREATE TABLE IF NOT EXISTS teachers (
                 id TEXT PRIMARY KEY,
@@ -141,8 +174,10 @@ class DataAccess {
                 created_at TEXT NOT NULL
             )
         `);
+        console.log('Created teachers table');
 
         // 系统配置表
+        console.log('Creating system_config table');
         await this._runRaw(`
             CREATE TABLE IF NOT EXISTS system_config (
                 key TEXT PRIMARY KEY,
@@ -150,13 +185,101 @@ class DataAccess {
                 updated_at TEXT NOT NULL
             )
         `);
+        console.log('Created system_config table');
+
+        // 学期表
+        console.log('Creating semesters table');
+        await this._runRaw(`
+            CREATE TABLE IF NOT EXISTS semesters (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                start_date TEXT NOT NULL,
+                end_date TEXT NOT NULL,
+                is_current INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            )
+        `);
+        console.log('Created semesters table');
+
+        // 学期归档表 (记录历史学期的最终积分和排名)
+        console.log('Creating semester_archives table');
+        await this._runRaw(`
+            CREATE TABLE IF NOT EXISTS semester_archives (
+                id TEXT PRIMARY KEY,
+                semester_id TEXT NOT NULL,
+                student_id TEXT NOT NULL,
+                final_balance INTEGER NOT NULL,
+                final_rank INTEGER NOT NULL,
+                FOREIGN KEY (semester_id) REFERENCES semesters(id) ON DELETE CASCADE,
+                FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+            )
+        `);
+        console.log('Created semester_archives table');
 
         // 创建索引
+        console.log('Creating indexes');
         await this._runRaw(`CREATE INDEX IF NOT EXISTS idx_point_records_student_id ON point_records(student_id)`);
         await this._runRaw(`CREATE INDEX IF NOT EXISTS idx_point_records_timestamp ON point_records(timestamp)`);
         await this._runRaw(`CREATE INDEX IF NOT EXISTS idx_orders_student_id ON orders(student_id)`);
         await this._runRaw(`CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)`);
-        await this._runRaw(`CREATE INDEX IF NOT EXISTS idx_products_is_active ON products(is_active)`);
+            await this._runRaw(`CREATE INDEX IF NOT EXISTS idx_products_is_active ON products(is_active)`);
+            await this._runRaw(`CREATE INDEX IF NOT EXISTS idx_semesters_is_current ON semesters(is_current)`);
+            await this._runRaw(`CREATE INDEX IF NOT EXISTS idx_semester_archives_semester_id ON semester_archives(semester_id)`);
+            console.log('Indexes created successfully.');
+        } catch (e) {
+            console.error('_createTables error:', e);
+            throw e;
+        }
+    }
+
+    /**
+     * 确保默认学期存在
+     */
+    async _ensureDefaultSemester() {
+        const row = await this._getRaw('SELECT COUNT(*) as count FROM semesters');
+        const count = row ? row.count : 0;
+        if (count === 0) {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = now.getMonth() + 1;
+            
+            // 当前学期
+            const currentTermName = month >= 2 && month <= 8 ? '春季学期' : '秋季学期';
+            const currentSemester = {
+                id: this._generateId('sem'),
+                name: `${year}年${currentTermName}`,
+                startDate: new Date(year, month >= 2 && month <= 8 ? 1 : 8, 1).toISOString(),
+                endDate: new Date(year, month >= 2 && month <= 8 ? 6 : 0, month >= 2 && month <= 8 ? 31 : 31).toISOString(),
+                isCurrent: 1,
+                createdAt: now.toISOString()
+            };
+
+            // 上一个学期
+            const previousYear = currentTermName === '春季学期' ? year - 1 : year;
+            const previousTermName = currentTermName === '春季学期' ? '秋季学期' : '春季学期';
+            const previousSemester = {
+                id: this._generateId('sem_prev'),
+                name: `${previousYear}年${previousTermName}`,
+                startDate: new Date(previousYear, previousTermName === '春季学期' ? 1 : 8, 1).toISOString(),
+                endDate: new Date(previousYear, previousTermName === '春季学期' ? 6 : 0, previousTermName === '春季学期' ? 31 : 31).toISOString(),
+                isCurrent: 0,
+                createdAt: new Date(now.getTime() - 86400000).toISOString() // 提早一天创建
+            };
+
+            // 插入上一个学期
+            await this._runRaw(
+                'INSERT INTO semesters (id, name, start_date, end_date, is_current, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+                [previousSemester.id, previousSemester.name, previousSemester.startDate, previousSemester.endDate, previousSemester.isCurrent, previousSemester.createdAt]
+            );
+            console.log(`初始化默认学期(上期): ${previousSemester.name}`);
+
+            // 插入当前学期
+            await this._runRaw(
+                'INSERT INTO semesters (id, name, start_date, end_date, is_current, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+                [currentSemester.id, currentSemester.name, currentSemester.startDate, currentSemester.endDate, currentSemester.isCurrent, currentSemester.createdAt]
+            );
+            console.log(`初始化默认学期(当期): ${currentSemester.name}`);
+        }
     }
 
     /**
@@ -242,7 +365,7 @@ class DataAccess {
         return new Promise((resolve, reject) => {
             this.db.run(sql, params, function (error) {
                 if (error) reject(error);
-                else resolve(this);
+                else resolve();
             });
         });
     }
@@ -581,7 +704,7 @@ class DataAccess {
     }
 
     async deleteTeacher(id) {
-        await this._run('UPDATE teachers SET is_active = 0 WHERE id = ?', [id]);
+        await this._run('DELETE FROM teachers WHERE id = ?', [id]);
         return true;
     }
 
@@ -593,6 +716,88 @@ class DataAccess {
             role: row.role,
             department: row.department,
             isActive: row.is_active === 1,
+            createdAt: row.created_at
+        };
+    }
+
+    // ==================== 学期操作 ====================
+
+    async getAllSemesters() {
+        const rows = await this._all('SELECT * FROM semesters ORDER BY created_at DESC');
+        return rows.map(row => this._rowToSemester(row));
+    }
+
+    async getSemesterById(id) {
+        const row = await this._get('SELECT * FROM semesters WHERE id = ?', [id]);
+        return row ? this._rowToSemester(row) : null;
+    }
+
+    async getActiveSemester() {
+        const row = await this._get('SELECT * FROM semesters WHERE is_current = 1 LIMIT 1');
+        return row ? this._rowToSemester(row) : null;
+    }
+
+    async createSemester(data) {
+        const now = new Date().toISOString();
+        const id = data.id || this._generateId('sem');
+        await this._run(
+            'INSERT INTO semesters (id, name, start_date, end_date, is_current, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+            [id, data.name, data.startDate, data.endDate, data.isCurrent ? 1 : 0, data.createdAt || now]
+        );
+        return this.getSemesterById(id);
+    }
+
+    async updateSemester(id, updateData) {
+        const fields = [];
+        const values = [];
+        const fieldMap = { name: 'name', startDate: 'start_date', endDate: 'end_date', isCurrent: 'is_current' };
+        
+        for (const [key, dbField] of Object.entries(fieldMap)) {
+            if (updateData[key] !== undefined) {
+                fields.push(`${dbField} = ?`);
+                values.push(key === 'isCurrent' ? (updateData[key] ? 1 : 0) : updateData[key]);
+            }
+        }
+        
+        if (fields.length === 0) return this.getSemesterById(id);
+        values.push(id);
+        await this._run(`UPDATE semesters SET ${fields.join(', ')} WHERE id = ?`, values);
+        return this.getSemesterById(id);
+    }
+
+    async setActiveSemester(id) {
+        await this._run('UPDATE semesters SET is_current = 0');
+        await this._run('UPDATE semesters SET is_current = 1 WHERE id = ?', [id]);
+        return this.getSemesterById(id);
+    }
+
+    async archiveStudentPoints(semesterId, studentId, finalBalance, finalRank) {
+        const archiveId = this._generateId('arc');
+        await this._run(
+            'INSERT INTO semester_archives (id, semester_id, student_id, final_balance, final_rank) VALUES (?, ?, ?, ?, ?)',
+            [archiveId, semesterId, studentId, finalBalance, finalRank]
+        );
+        return archiveId;
+    }
+
+    async getSemesterArchives(semesterId) {
+        const rows = await this._all('SELECT * FROM semester_archives WHERE semester_id = ? ORDER BY final_rank ASC', [semesterId]);
+        return rows.map(row => ({
+            id: row.id,
+            semesterId: row.semester_id,
+            studentId: row.student_id,
+            finalBalance: row.final_balance,
+            finalRank: row.final_rank
+        }));
+    }
+
+    _rowToSemester(row) {
+        return {
+            id: row.id,
+            name: row.name,
+            startDate: row.start_date,
+            endDate: row.end_date,
+            isCurrent: row.is_current === 1,
             createdAt: row.created_at
         };
     }
@@ -644,7 +849,9 @@ class DataAccess {
             orders: await this._count('orders'),
             pendingOrders: await this._count('orders', 'status = ?', ['pending']),
             teachers: await this._count('teachers'),
-            activeTeachers: await this._count('teachers', 'is_active = 1')
+            activeTeachers: await this._count('teachers', 'is_active = 1'),
+            semesters: await this._count('semesters'),
+            archives: await this._count('semester_archives')
         };
     }
 
