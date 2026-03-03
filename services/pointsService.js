@@ -51,14 +51,21 @@ class PointsService {
    * @param {number} limit - 限制返回数量
    * @returns {Promise<PointRecord[]>}
    */
-  async getPointRecordsByStudent(studentId, limit = null) {
+  async getPointRecordsByStudent(studentId, limit = null, semesterId = null) {
     try {
       await this._ensureInit();
       if (!studentId || typeof studentId !== "string") {
         throw new Error("学号不能为空且必须为字符串");
       }
 
-      const records = await this.dataAccess.getPointRecordsByStudent(studentId, limit);
+      // 默认只获取当前激活学期的记录
+      let targetSemesterId = semesterId;
+      if (targetSemesterId === null) {
+          const activeSemester = await this.dataAccess.getActiveSemester();
+          targetSemesterId = activeSemester ? activeSemester.id : null;
+      }
+
+      const records = await this.dataAccess.getPointRecordsByStudent(studentId, limit, targetSemesterId);
       return records.map((record) => new PointRecord(record));
     } catch (error) {
       console.error(`获取学生积分记录失败 (${studentId}):`, error);
@@ -111,6 +118,7 @@ class PointsService {
    */
   async calculateStudentBalance(studentId) {
     try {
+      // 这里的 getPointRecordsByStudent 已经被修改为默认只查当前学期
       const records = await this.getPointRecordsByStudent(studentId);
       const balance = records.reduce((sum, record) => sum + record.points, 0);
       return balance;
@@ -229,10 +237,15 @@ class PointsService {
     );
     const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
 
-    // 使用 SQLite 直接查询当日记录
+    // 获取当前学期ID
+    const activeSemester = await this.dataAccess.getActiveSemester();
+    const semesterId = activeSemester ? activeSemester.id : null;
+
+    // 使用 SQLite 直接查询当日记录 (传入学期ID过滤)
     const todayRecords = await this.dataAccess.getPointRecordsByDateRange(
       startOfDay.toISOString(),
-      endOfDay.toISOString()
+      endOfDay.toISOString(),
+      semesterId
     );
 
     // 使用Map进行高效分组统计
@@ -278,10 +291,15 @@ class PointsService {
     startOfWeek.setHours(0, 0, 0, 0);
     const endOfWeek = new Date(startOfWeek.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-    // 使用 SQLite 直接查询本周记录
+    // 获取当前学期ID
+    const activeSemester = await this.dataAccess.getActiveSemester();
+    const semesterId = activeSemester ? activeSemester.id : null;
+
+    // 使用 SQLite 直接查询本周记录 (传入学期ID过滤)
     const weekRecords = await this.dataAccess.getPointRecordsByDateRange(
       startOfWeek.toISOString(),
-      endOfWeek.toISOString()
+      endOfWeek.toISOString(),
+      semesterId
     );
 
     // 使用Map进行高效分组统计

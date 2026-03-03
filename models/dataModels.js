@@ -66,6 +66,7 @@ class PointRecord {
     constructor(data = {}) {
         this.id = data.id || this.generateId();
         this.studentId = data.studentId || '';
+        this.semesterId = data.semesterId || null;
         this.points = data.points || 0;
         this.reason = data.reason || '';
         this.operatorId = data.operatorId || '';
@@ -119,6 +120,7 @@ class PointRecord {
         return {
             id: this.id,
             studentId: this.studentId,
+            semesterId: this.semesterId,
             points: this.points,
             reason: this.reason,
             operatorId: this.operatorId,

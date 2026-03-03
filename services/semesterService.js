@@ -145,50 +145,69 @@ class SemesterService {
       // 计算当前所有学生的总积分
       const totalCurrentPoints = studentRankings.reduce((sum, item) => sum + item.points, 0);
 
-      // 如果当前总积分大于0，说明已有积分数据存在，新学期初始化时不应覆盖已有数据发奖励
-      if (totalCurrentPoints > 0) {
-        console.log(`当前学期总积分(${totalCurrentPoints}) > 0，跳过历史归档、清零和初始奖励发放`);
-        
-        // 仅将该学期设置为激活状态
-        await this.dataAccess.setActiveSemester(newSemesterId);
-        this.pointsService.clearCache();
-        
-        console.log(`成功激活新学期：${newSemester.name}（未修改现有积分）`);
-        return newSemester;
+      // 如果我们要切走的老学期存在
+      if (currentSemester) {
+          // 检查该学期是否已被归档过
+          const hasArchiveQuery = await this.dataAccess._all('SELECT id FROM semester_archives WHERE semester_id = ? LIMIT 1', [currentSemester.id]);
+          const hasArchive = hasArchiveQuery && hasArchiveQuery.length > 0;
+
+          if (!hasArchive) {
+              console.log(`正在归档 ${currentSemester.name} 的积分...`);
+              for (const rankItem of studentRankings) {
+                  await this.dataAccess.archiveStudentPoints(
+                      currentSemester.id,
+                      rankItem.id,
+                      rankItem.points,
+                      rankItem.rank
+                  );
+              }
+          }
+
+          if (totalCurrentPoints > 0) {
+              console.log(`正在清零上一学期(${currentSemester.name})残留的积分...`);
+              await this.dataAccess._run('UPDATE students SET balance = 0');
+          }
       }
-
-      console.log(`当前学期总积分为 0，开始发放上期排名的初始奖励`);
-
-      // 此时总积分为0，可以读取上学期的归档记录来作为排名依据
-      // 因为当前的 studentRankings 都是0分，无法用来发放奖励
-      const latestArchive = currentSemester ? await this.dataAccess._all(`
-        SELECT student_id as studentId, final_rank as rank, final_balance as points 
-        FROM semester_archives 
-        WHERE semester_id = ?
-      `, [currentSemester.id]) : [];
-
-      // 注意：如果当前没有任何上期归档数据（比如系统刚初始化第一次激活），latestArchive将为空，那就不发奖励
-      const rankDataToUse = latestArchive.length > 0 ? latestArchive : [];
-
-      // 4. 发放按照排名阶梯计算的新学期初始奖励
-      const bonusRecords = rankDataToUse.map((record) => {
-         const bonus = this._getBonusPointsByRank(record.rank);
-         return {
-            studentId: record.studentId,
-            points: bonus,
-            reason: `新学期(${newSemester.name})初始奖励 (上期排名第${record.rank}名)`,
-            operatorId: operatorId,
-            type: 'add'
-         };
-      });
-
-      // 批量发放
-      if (bonusRecords.length > 0) {
-        await this.pointsService.batchAddPointRecords(bonusRecords);
-      }
-
-      // 5. 将该学期设置为激活状态（其他自动取消激活）
+      // 5. 将该学期设置为激活状态（其他自动取消激活），这必须在【新学期发初始奖励前】执行，
+      // 以便于之后新插入的记录能自动绑定正确的 semester_id ！！
       await this.dataAccess.setActiveSemester(newSemesterId);
+
+      // 此时所有的操作都在新学期(newSemester)下进行。
+      // 可以安全地发放初始奖励
+      const checkBonusQuery = await this.dataAccess._all(
+          "SELECT id FROM point_records WHERE reason LIKE ? AND semester_id = ? LIMIT 1", 
+          [`新学期(${newSemester.name})初始奖励%`, newSemester.id]
+      );
+      const hasInitialBonuses = checkBonusQuery && checkBonusQuery.length > 0;
+
+      if (hasInitialBonuses) {
+          console.log(`新学期 ${newSemester.name} 已存在初始奖励记录，跳过重复发放`);
+      } else {
+          console.log(`开始发放上期排名的初始奖励`);
+          const latestArchive = currentSemester ? await this.dataAccess._all(`
+            SELECT student_id as studentId, final_rank as rank, final_balance as points 
+            FROM semester_archives 
+            WHERE semester_id = ?
+          `, [currentSemester.id]) : [];
+
+          const rankDataToUse = latestArchive.length > 0 ? latestArchive : [];
+
+          const bonusRecords = rankDataToUse.map((record) => {
+             const bonus = this._getBonusPointsByRank(record.rank);
+             return {
+                studentId: record.studentId,
+                semesterId: newSemester.id, // Explicitly pin to new semester
+                points: bonus,
+                reason: `新学期(${newSemester.name})初始奖励 (上期排名第${record.rank}名)`,
+                operatorId: operatorId,
+                type: 'add'
+             };
+          });
+
+          if (bonusRecords.length > 0) {
+            await this.pointsService.batchAddPointRecords(bonusRecords);
+          }
+      }
 
       // 6. 清理积分缓存确保最新的排行准确
       this.pointsService.clearCache();

@@ -121,6 +121,7 @@ class DataAccess {
                 CREATE TABLE IF NOT EXISTS point_records (
                     id TEXT PRIMARY KEY,
                     student_id TEXT NOT NULL,
+                    semester_id TEXT,
                     points INTEGER NOT NULL,
                     reason TEXT NOT NULL,
                     operator_id TEXT,
@@ -129,6 +130,17 @@ class DataAccess {
                     FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
                 )
             `);
+
+            // 自动升级 point_records 增加 semester_id
+            try {
+                await this._runRaw(`ALTER TABLE point_records ADD COLUMN semester_id TEXT`);
+                console.log('Migrated point_records to add semester_id column');
+            } catch (err) {
+                // Ignore "duplicate column name" error
+                if (!err.message.includes('duplicate column')) {
+                    console.error('Error migrating point_records:', err);
+                }
+            }
 
             await this._runRaw(`
             CREATE TABLE IF NOT EXISTS products (
@@ -483,20 +495,35 @@ class DataAccess {
         return rows.map(row => this._rowToPointRecord(row));
     }
 
-    async getPointRecordsByStudent(studentId, limit = null) {
-        let sql = 'SELECT * FROM point_records WHERE student_id = ? ORDER BY timestamp DESC';
+    async getPointRecordsByStudent(studentId, limit = null, semesterId = null) {
+        let sql = 'SELECT * FROM point_records WHERE student_id = ?';
+        let params = [studentId];
+        
+        if (semesterId) {
+            sql += ' AND semester_id = ?';
+            params.push(semesterId);
+        }
+        
+        sql += ' ORDER BY timestamp DESC';
         if (limit) sql += ` LIMIT ${parseInt(limit)}`;
-        const rows = await this._all(sql, [studentId]);
+        
+        const rows = await this._all(sql, params);
         return rows.map(row => this._rowToPointRecord(row));
     }
 
-    async getPointRecordsByDateRange(startDate, endDate, studentId = null) {
+    async getPointRecordsByDateRange(startDate, endDate, semesterId = null, studentId = null) {
         let sql = 'SELECT * FROM point_records WHERE timestamp >= ? AND timestamp <= ?';
         const params = [startDate, endDate];
+        if (semesterId) {
+            sql += ' AND semester_id = ?';
+            params.push(semesterId);
+        }
         if (studentId) {
             sql += ' AND student_id = ?';
             params.push(studentId);
         }
+        // Exclude system transition actions from performance rankings
+        sql += " AND reason NOT LIKE '%初始奖励%' AND reason NOT LIKE '%积分清零%'";
         sql += ' ORDER BY timestamp DESC';
         const rows = await this._all(sql, params);
         return rows.map(row => this._rowToPointRecord(row));
@@ -506,12 +533,13 @@ class DataAccess {
         const now = new Date().toISOString();
         const id = data.id || this._generateId('point');
         await this._run(
-            'INSERT INTO point_records (id, student_id, points, reason, operator_id, timestamp, type) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [id, data.studentId, data.points, data.reason, data.operatorId || '', data.timestamp || now, data.type || 'add']
+            'INSERT INTO point_records (id, student_id, semester_id, points, reason, operator_id, timestamp, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [id, data.studentId, data.semesterId, data.points, data.reason, data.operatorId || '', data.timestamp || now, data.type || 'add']
         );
         return {
             id,
             studentId: data.studentId,
+            semesterId: data.semesterId,
             points: data.points,
             reason: data.reason,
             operatorId: data.operatorId || '',
@@ -524,6 +552,7 @@ class DataAccess {
         return {
             id: row.id,
             studentId: row.student_id,
+            semesterId: row.semester_id,
             points: row.points,
             reason: row.reason,
             operatorId: row.operator_id,
