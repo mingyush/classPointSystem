@@ -679,6 +679,9 @@ function selectStudent(studentId) {
         // 清空输入框
         document.getElementById('pointsInput').value = '1';
         document.getElementById('reasonInput').value = '';
+        
+        // 加载该学生的最近操作记录
+        loadRecentOperations();
     }
 }
 
@@ -777,20 +780,28 @@ async function adjustPoints(isAdd) {
 
 // 加载最近操作
 async function loadRecentOperations() {
+    console.log('loadRecentOperations 被调用', selectedStudent ? `(选中的学生ID: ${selectedStudent.id})` : '(无选中的学生)');
     if (!selectedStudent) return;
 
     try {
+        console.log(`正在请求 API: /api/points/history/${selectedStudent.id}`);
         const response = await apiRequest(`/api/points/history/${selectedStudent.id}`);
+        console.log('API 返回结果:', response);
         const records = response.data?.records || response.records || [];
+        console.log('解析到的记录数:', records.length);
         
         const container = document.getElementById('operationsList');
+        if (!container) {
+            console.error('致命错误: 在 DOM 中找不到 ID 为 operationsList 的容器');
+            return;
+        }
         
         if (records.length === 0) {
             container.innerHTML = '<div class="no-data">暂无最近操作记录</div>';
             return;
         }
 
-        container.innerHTML = records.map(record => `
+        const htmlContent = records.map(record => `
             <div class="operation-item">
                 <div class="operation-header">
                     <span class="operation-reason">${record.reason}</span>
@@ -802,10 +813,14 @@ async function loadRecentOperations() {
                 </div>
             </div>
         `).join('');
+        
+        console.log('生成的 HTML 长度:', htmlContent.length);
+        container.innerHTML = htmlContent;
+        console.log('HTML 已插入到 operationsList 容器中');
     } catch (error) {
         console.error('加载操作记录失败:', error);
         const container = document.getElementById('operationsList');
-        container.innerHTML = '<div class="error">加载失败</div>';
+        if (container) container.innerHTML = '<div class="error">加载失败</div>';
     }
 }
 
