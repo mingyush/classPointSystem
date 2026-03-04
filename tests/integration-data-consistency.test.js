@@ -99,7 +99,7 @@ describe('数据一致性和并发测试', () => {
             expect(finalBalance).toBe(pointsPerOperation * operationCount);
 
             // 验证积分历史记录数量正确
-            const history = await pointsService.getPointsHistory(studentId);
+            const history = await pointsService.getPointRecordsByStudent(studentId);
             const addRecords = history.filter(record => record.type === 'add');
             expect(addRecords.length).toBe(operationCount);
         });
@@ -162,7 +162,7 @@ describe('数据一致性和并发测试', () => {
                     stock: 2 // 只有2个库存
                 });
             
-            const productId = productResponse.body.data.product.id;
+            console.log("statusCode:", productResponse.status, "text:", productResponse.text); const productId = productResponse.body.data.product.id;
 
             // 给所有测试学生足够的积分
             for (const student of testStudents) {
@@ -295,7 +295,7 @@ describe('数据一致性和并发测试', () => {
                     stock: 5
                 });
             
-            const productId = productResponse.body.data.product.id;
+            console.log("statusCode:", productResponse.status, "text:", productResponse.text); const productId = productResponse.body.data.product.id;
 
             // 获取学生令牌
             const studentLoginResponse = await request(app)
@@ -373,7 +373,7 @@ describe('数据一致性和并发测试', () => {
                     stock: 1
                 });
             
-            const productId = productResponse.body.data.product.id;
+            console.log("statusCode:", productResponse.status, "text:", productResponse.text); const productId = productResponse.body.data.product.id;
 
             // 获取学生令牌
             const studentLoginResponse = await request(app)
@@ -442,7 +442,7 @@ describe('数据一致性和并发测试', () => {
             const afterBalance = await newStudentService.getStudentBalance(studentId);
             expect(afterBalance).toBe(beforeBalance + 25);
 
-            const afterHistory = await newPointsService.getPointsHistory(studentId);
+            const afterHistory = await newPointsService.getPointRecordsByStudent(studentId);
             expect(afterHistory.length).toBe(beforeHistoryCount + 1);
         });
 

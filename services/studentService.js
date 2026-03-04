@@ -148,6 +148,24 @@ class StudentService {
     }
 
     /**
+     * 读取学生积分余额
+     * @param {string} studentId - 学号
+     * @returns {Promise<number>}
+     */
+    async getStudentBalance(studentId) {
+        try {
+            const student = await this.getStudentById(studentId);
+            if (!student) {
+                throw new Error(`学生不存在: ${studentId}`);
+            }
+            return student.balance;
+        } catch (error) {
+            console.error(`获取学生积分余额失败 (${studentId}):`, error);
+            throw error;
+        }
+    }
+
+    /**
      * 更新学生积分余额
      * @param {string} studentId - 学号
      * @param {number} newBalance - 新的积分余额

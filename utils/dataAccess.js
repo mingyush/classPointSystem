@@ -7,6 +7,8 @@ const sqlite3 = require('sqlite3').verbose();
  * 提供规范化的数据库表结构和直接 SQL 操作
  */
 class DataAccess {
+    static instances = [];
+
     constructor(dataDir = 'data') {
         this._dataDir = dataDir;
         this.backupDir = path.join(dataDir, 'backups');
@@ -22,10 +24,35 @@ class DataAccess {
             averageReadTime: 0,
             averageWriteTime: 0
         };
+
+        DataAccess.instances.push(this);
     }
 
     get dataDir() {
         return this._dataDir;
+    }
+
+    static async closeAll() {
+        if (DataAccess.instances.length > 0) {
+            console.log(`正在关闭 ${DataAccess.instances.length} 个 DataAccess 数据库实例...`);
+            const promises = DataAccess.instances.map(async (instance) => {
+                if (instance.db) {
+                    return new Promise((resolve) => {
+                        instance.db.close((err) => {
+                            if (err) {
+                                console.error('关闭 SQLite 数据库连接出错:', err);
+                            }
+                            instance.db = null;
+                            instance.initialized = false;
+                            resolve();
+                        });
+                    });
+                }
+            });
+            await Promise.all(promises);
+            DataAccess.instances = [];
+            console.log('所有依赖 sqlite 的 DataAccess 实例已完成释放。');
+        }
     }
 
     set dataDir(nextDataDir) {
@@ -632,13 +659,24 @@ class DataAccess {
 
     // ==================== 订单操作 ====================
 
-    async getAllOrders(status = null) {
+    async getAllOrders(status = null, semesterId = null) {
         let sql = 'SELECT * FROM orders';
         const params = [];
+        const conditions = [];
+        
         if (status) {
-            sql += ' WHERE status = ?';
+            conditions.push('status = ?');
             params.push(status);
         }
+        if (semesterId) {
+            conditions.push('semester_id = ?');
+            params.push(semesterId);
+        }
+        
+        if (conditions.length > 0) {
+            sql += ' WHERE ' + conditions.join(' AND ');
+        }
+        
         sql += ' ORDER BY reserved_at DESC';
         const rows = await this._all(sql, params);
         return rows.map(row => this._rowToOrder(row));
@@ -649,12 +687,16 @@ class DataAccess {
         return row ? this._rowToOrder(row) : null;
     }
 
-    async getOrdersByStudentId(studentId, status = null) {
+    async getOrdersByStudentId(studentId, status = null, semesterId = null) {
         let sql = 'SELECT * FROM orders WHERE student_id = ?';
         const params = [studentId];
         if (status) {
             sql += ' AND status = ?';
             params.push(status);
+        }
+        if (semesterId) {
+            sql += ' AND semester_id = ?';
+            params.push(semesterId);
         }
         sql += ' ORDER BY reserved_at DESC';
         const rows = await this._all(sql, params);
@@ -665,8 +707,8 @@ class DataAccess {
         const now = new Date().toISOString();
         const id = data.id || this._generateId('order');
         await this._run(
-            'INSERT INTO orders (id, student_id, product_id, status, reserved_at, confirmed_at, cancelled_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [id, data.studentId, data.productId, data.status || 'pending', data.reservedAt || now, data.confirmedAt || null, data.cancelledAt || null]
+            'INSERT INTO orders (id, student_id, semester_id, product_id, status, reserved_at, confirmed_at, cancelled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [id, data.studentId, data.semesterId, data.productId, data.status || 'pending', data.reservedAt || now, data.confirmedAt || null, data.cancelledAt || null]
         );
         return this.getOrderById(id);
     }
@@ -687,6 +729,7 @@ class DataAccess {
         return {
             id: row.id,
             studentId: row.student_id,
+            semesterId: row.semester_id,
             productId: row.product_id,
             status: row.status,
             reservedAt: row.reserved_at,
