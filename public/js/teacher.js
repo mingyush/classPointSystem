@@ -521,6 +521,7 @@ function renderSystemSettings() {
                     <button onclick="exportData()" class="export-btn">导出数据</button>
                     <button onclick="createBackup()" class="backup-btn">创建备份</button>
                     <button onclick="showBackupManager()" class="backup-manager-btn">备份管理</button>
+                    <button onclick="repairDataConsistency()" class="repair-btn">修复数据一致性</button>
                     <button onclick="showResetConfirm()" class="reset-btn danger" id="resetPointsBtn" disabled>重置积分</button>
                 </div>
                 <small>重置积分功能需要在系统参数中启用</small>
@@ -678,6 +679,9 @@ function selectStudent(studentId) {
         // 清空输入框
         document.getElementById('pointsInput').value = '1';
         document.getElementById('reasonInput').value = '';
+        
+        // 加载该学生的最近操作记录
+        loadRecentOperations();
     }
 }
 
@@ -706,6 +710,21 @@ async function adjustPoints(isAdd) {
         return;
     }
 
+    const addButton = document.querySelector('.add-points');
+    const subButton = document.querySelector('.subtract-points');
+    const originalAddText = addButton ? addButton.textContent : '加分';
+    const originalSubText = subButton ? subButton.textContent : '减分';
+
+    // 禁用按钮并显示加载状态
+    if (addButton) {
+        addButton.disabled = true;
+        if (isAdd) addButton.textContent = '处理中...';
+    }
+    if (subButton) {
+        subButton.disabled = true;
+        if (!isAdd) subButton.textContent = '处理中...';
+    }
+
     try {
         const endpoint = isAdd ? '/api/points/add' : '/api/points/subtract';
         const response = await apiRequest(endpoint, {
@@ -725,8 +744,15 @@ async function adjustPoints(isAdd) {
             students[studentIndex].balance = newBalance;
         }
 
-        // 刷新显示
-        renderStudentList();
+        // 刷新显示，保留搜索关键字
+        const searchInput = document.getElementById('studentSearch');
+        const searchTerm = searchInput ? searchInput.value.trim() : '';
+        if (searchTerm) {
+            filterStudents(searchTerm);
+        } else {
+            renderStudentList();
+        }
+        
         selectStudent(selectedStudent.id);
         loadRecentOperations();
 
@@ -737,19 +763,64 @@ async function adjustPoints(isAdd) {
 
     } catch (error) {
         console.error('积分操作失败:', error);
-        showMessage('积分操作失败，请重试', 'error');
+        // 使用服务器返回的具体错误信息，如果没有则使用默认提示
+        showMessage(error.message || '积分操作失败，请重试', 'error');
+    } finally {
+        // 恢复按钮状态
+        if (addButton) {
+            addButton.disabled = false;
+            addButton.textContent = originalAddText;
+        }
+        if (subButton) {
+            subButton.disabled = false;
+            subButton.textContent = originalSubText;
+        }
     }
 }
 
 // 加载最近操作
 async function loadRecentOperations() {
+    console.log('loadRecentOperations 被调用', selectedStudent ? `(选中的学生ID: ${selectedStudent.id})` : '(无选中的学生)');
+    if (!selectedStudent) return;
+
     try {
-        // 这里应该调用获取最近操作的API
-        // 暂时显示占位内容
+        console.log(`正在请求 API: /api/points/history/${selectedStudent.id}`);
+        const response = await apiRequest(`/api/points/history/${selectedStudent.id}`);
+        console.log('API 返回结果:', response);
+        const records = response.data?.records || response.records || [];
+        console.log('解析到的记录数:', records.length);
+        
         const container = document.getElementById('operationsList');
-        container.innerHTML = '<div class="no-data">暂无最近操作记录</div>';
+        if (!container) {
+            console.error('致命错误: 在 DOM 中找不到 ID 为 operationsList 的容器');
+            return;
+        }
+        
+        if (records.length === 0) {
+            container.innerHTML = '<div class="no-data">暂无最近操作记录</div>';
+            return;
+        }
+
+        const htmlContent = records.map(record => `
+            <div class="operation-item">
+                <div class="operation-header">
+                    <span class="operation-reason">${record.reason}</span>
+                    <span class="operation-points ${record.type}">${record.points > 0 ? '+' : ''}${record.points}分</span>
+                </div>
+                <div class="operation-footer">
+                    <span class="operation-time">${new Date(record.timestamp).toLocaleString()}</span>
+                    <span class="operation-operator">操作人: ${record.operatorId || '系统'}</span>
+                </div>
+            </div>
+        `).join('');
+        
+        console.log('生成的 HTML 长度:', htmlContent.length);
+        container.innerHTML = htmlContent;
+        console.log('HTML 已插入到 operationsList 容器中');
     } catch (error) {
         console.error('加载操作记录失败:', error);
+        const container = document.getElementById('operationsList');
+        if (container) container.innerHTML = '<div class="error">加载失败</div>';
     }
 }
 
@@ -2372,6 +2443,31 @@ async function revokeDirector(id, name) {
             loadTeachersList();
         } catch(e) {
             showMessage(e.message, 'error');
+        }
+    });
+}
+
+// 修复数据一致性
+async function repairDataConsistency() {
+    showConfirmModal('该操作将合并重复的学期并根据流水自动对等学生余额。确定要执行数据一致性修复吗？', async () => {
+        try {
+            showMessage('正在执行数据修复，请稍候...', 'info');
+            const response = await apiRequest('/api/config/fix-data', {
+                method: 'POST'
+            });
+
+            if (response.success) {
+                const results = response.data;
+                const msg = `修复成功！合并学期: ${results.semestersMerged}, 补全记录: ${results.recordsAdded}`;
+                showMessage(msg, 'success');
+                // 重新加载数据
+                await loadInitialData();
+            } else {
+                showMessage(response.message || '修复失败', 'error');
+            }
+        } catch (error) {
+            console.error('修复数据失败:', error);
+            showMessage('修复请求失败: ' + (error.message || '未知错误'), 'error');
         }
     });
 }

@@ -1,5 +1,6 @@
 const fs = require('fs').promises;
 const path = require('path');
+const os = require('os');
 
 /**
  * 错误类型定义
@@ -586,18 +587,35 @@ class ErrorMonitor {
      */
     async checkSystemResources(alerts) {
         try {
-            const memoryUsage = process.memoryUsage();
-            const memoryUsagePercent = memoryUsage.heapUsed / memoryUsage.heapTotal;
+            const totalMem = os.totalmem();
+            const freeMem = os.freemem();
+            const usedMem = totalMem - freeMem;
+            const memoryUsagePercent = usedMem / totalMem;
+            const memoryUsage = process.memoryUsage(); // 保留用于记录进程数据
             
-            // 检查内存使用率
+            // 检查服务器物理内存使用率
             if (memoryUsagePercent > 0.9) { // 90%内存使用率
                 const alertKey = 'HIGH_MEMORY_USAGE';
                 if (this.shouldSendAlert(alertKey)) {
                     alerts.push({
                         type: alertKey,
-                        message: `内存使用率${(memoryUsagePercent * 100).toFixed(2)}%过高`,
+                        message: `服务器物理内存使用率${(memoryUsagePercent * 100).toFixed(2)}%过高`,
                         severity: 'WARNING',
-                        data: { memoryUsage, memoryUsagePercent }
+                        data: { systemUsage: memoryUsagePercent, processMemory: memoryUsage }
+                    });
+                }
+            }
+
+            // 也检查一下 Node 进程本身是否占用过高 (超过 500MB rss)
+            const processMemUsageMB = memoryUsage.rss / (1024 * 1024);
+            if (processMemUsageMB > 500) {
+                const alertKey = 'HIGH_PROCESS_MEMORY';
+                if (this.shouldSendAlert(alertKey)) {
+                    alerts.push({
+                        type: alertKey,
+                        message: `Node进程内存占用过高: ${processMemUsageMB.toFixed(2)}MB`,
+                        severity: 'WARNING',
+                        data: { processMemory: memoryUsage }
                     });
                 }
             }
@@ -734,13 +752,17 @@ class ErrorMonitor {
 
             const errorRate = statistics.totalErrors / Math.max(1, statistics.totalErrors + 100); // 假设正常请求数
             const memoryUsage = process.memoryUsage();
-            const memoryUsagePercent = memoryUsage.heapUsed / memoryUsage.heapTotal;
+            
+            // 将健康检查修改为基于系统的实际内存分配或者 RSS
+            const totalMem = os.totalmem();
+            const freeMem = os.freemem();
+            const memoryUsagePercent = (totalMem - freeMem) / totalMem;
             
             // 综合评估健康状态
             const healthChecks = {
                 errorRate: errorRate <= this.errorThresholds.errorRate,
                 errorCount: statistics.totalErrors <= this.errorThresholds.errorCount,
-                memoryUsage: memoryUsagePercent <= 0.9,
+                memoryUsage: memoryUsagePercent <= 0.9 && (memoryUsage.rss / (1024 * 1024)) < 500, // 系统不足90% 或 进程不足500MB 
                 uptime: process.uptime() < 7 * 24 * 60 * 60 // 7天
             };
 

@@ -166,5 +166,16 @@ router.post('/test', authenticateToken, requireTeacher, (req, res) => {
 module.exports = {
     router,
     broadcastSSEMessage,
-    getConnectionCount: () => sseConnections.size
+    getConnectionCount: () => sseConnections.size,
+    closeAllConnections: () => {
+        if (sseConnections.size > 0) {
+            console.log(`正在断开 ${sseConnections.size} 个存活的 SSE 连接...`);
+            sseConnections.forEach(conn => {
+                if (conn.response && !conn.response.writableEnded) {
+                    conn.response.end();
+                }
+            });
+            sseConnections.clear();
+        }
+    }
 };

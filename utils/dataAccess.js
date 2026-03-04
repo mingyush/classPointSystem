@@ -7,6 +7,8 @@ const sqlite3 = require('sqlite3').verbose();
  * 提供规范化的数据库表结构和直接 SQL 操作
  */
 class DataAccess {
+    static instances = [];
+
     constructor(dataDir = 'data') {
         this._dataDir = dataDir;
         this.backupDir = path.join(dataDir, 'backups');
@@ -22,10 +24,35 @@ class DataAccess {
             averageReadTime: 0,
             averageWriteTime: 0
         };
+
+        DataAccess.instances.push(this);
     }
 
     get dataDir() {
         return this._dataDir;
+    }
+
+    static async closeAll() {
+        if (DataAccess.instances.length > 0) {
+            console.log(`正在关闭 ${DataAccess.instances.length} 个 DataAccess 数据库实例...`);
+            const promises = DataAccess.instances.map(async (instance) => {
+                if (instance.db) {
+                    return new Promise((resolve) => {
+                        instance.db.close((err) => {
+                            if (err) {
+                                console.error('关闭 SQLite 数据库连接出错:', err);
+                            }
+                            instance.db = null;
+                            instance.initialized = false;
+                            resolve();
+                        });
+                    });
+                }
+            });
+            await Promise.all(promises);
+            DataAccess.instances = [];
+            console.log('所有依赖 sqlite 的 DataAccess 实例已完成释放。');
+        }
     }
 
     set dataDir(nextDataDir) {
@@ -81,13 +108,16 @@ class DataAccess {
         // 创建表结构
         await this._createTables();
 
-        // 迁移旧数据
+        // 先确保默认学期存在（必须在旧数据迁移前，否则时间回填时找不到学期）
+        await this._ensureDefaultSemester();
+
+        // 迁移旧数据（此时学期已存在，可正确关联）
         await this._migrateLegacyData();
 
-            // 确保默认学期存在
-            await this._ensureDefaultSemester();
+        // 检查版本升级以处理学期关联变更等 (1.2.0+)
+        await this._checkAndUpgradeData();
 
-            this.initialized = true;
+        this.initialized = true;
         })();
         
         await this._initPromise;
@@ -131,17 +161,6 @@ class DataAccess {
                 )
             `);
 
-            // 自动升级 point_records 增加 semester_id
-            try {
-                await this._runRaw(`ALTER TABLE point_records ADD COLUMN semester_id TEXT`);
-                console.log('Migrated point_records to add semester_id column');
-            } catch (err) {
-                // Ignore "duplicate column name" error
-                if (!err.message.includes('duplicate column')) {
-                    console.error('Error migrating point_records:', err);
-                }
-            }
-
             await this._runRaw(`
             CREATE TABLE IF NOT EXISTS products (
                 id TEXT PRIMARY KEY,
@@ -162,6 +181,7 @@ class DataAccess {
             CREATE TABLE IF NOT EXISTS orders (
                 id TEXT PRIMARY KEY,
                 student_id TEXT NOT NULL,
+                semester_id TEXT,
                 product_id TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT 'pending',
                 reserved_at TEXT NOT NULL,
@@ -246,6 +266,7 @@ class DataAccess {
 
     /**
      * 确保默认学期存在
+     * 学期定义：春季学期 2月1日~7月31日，秋季学期 9月1日~次年1月31日
      */
     async _ensureDefaultSemester() {
         const row = await this._getRaw('SELECT COUNT(*) as count FROM semesters');
@@ -253,44 +274,146 @@ class DataAccess {
         if (count === 0) {
             const now = new Date();
             const year = now.getFullYear();
-            const month = now.getMonth() + 1;
-            
-            // 当前学期
-            const currentTermName = month >= 2 && month <= 8 ? '春季学期' : '秋季学期';
-            const currentSemester = {
-                id: this._generateId('sem'),
-                name: `${year}年${currentTermName}`,
-                startDate: new Date(year, month >= 2 && month <= 8 ? 1 : 8, 1).toISOString(),
-                endDate: new Date(year, month >= 2 && month <= 8 ? 6 : 0, month >= 2 && month <= 8 ? 31 : 31).toISOString(),
-                isCurrent: 1,
-                createdAt: now.toISOString()
-            };
+            const month = now.getMonth() + 1; // 1-12
 
-            // 上一个学期
-            const previousYear = currentTermName === '春季学期' ? year - 1 : year;
-            const previousTermName = currentTermName === '春季学期' ? '秋季学期' : '春季学期';
-            const previousSemester = {
-                id: this._generateId('sem_prev'),
-                name: `${previousYear}年${previousTermName}`,
-                startDate: new Date(previousYear, previousTermName === '春季学期' ? 1 : 8, 1).toISOString(),
-                endDate: new Date(previousYear, previousTermName === '春季学期' ? 6 : 0, previousTermName === '春季学期' ? 31 : 31).toISOString(),
-                isCurrent: 0,
-                createdAt: new Date(now.getTime() - 86400000).toISOString() // 提早一天创建
-            };
+            // 判断当前处于哪个学期（春季：2~8月，秋季：9~次年1月）
+            const isSpring = month >= 2 && month <= 8;
+
+            let currentSemester, previousSemester;
+
+            if (isSpring) {
+                // 当前：春季学期 year年2月1日~7月31日
+                currentSemester = {
+                    id: this._generateId('sem'),
+                    name: `${year}年春季学期`,
+                    startDate: new Date(year, 1, 1).toISOString(),   // 2月1日
+                    endDate:   new Date(year, 6, 31).toISOString(),  // 7月31日
+                    isCurrent: 1,
+                    createdAt: now.toISOString()
+                };
+                // 上一个：秋季学期 (year-1)年9月1日~(year)年1月31日
+                previousSemester = {
+                    id: this._generateId('sem_prev'),
+                    name: `${year - 1}年秋季学期`,
+                    startDate: new Date(year - 1, 8, 1).toISOString(),  // 9月1日
+                    endDate:   new Date(year, 0, 31).toISOString(),     // 次年1月31日
+                    isCurrent: 0,
+                    createdAt: new Date(now.getTime() - 86400000).toISOString()
+                };
+            } else {
+                // 当前：秋季学期 year年9月1日~(year+1)年1月31日
+                currentSemester = {
+                    id: this._generateId('sem'),
+                    name: `${year}年秋季学期`,
+                    startDate: new Date(year, 8, 1).toISOString(),      // 9月1日
+                    endDate:   new Date(year + 1, 0, 31).toISOString(), // 次年1月31日
+                    isCurrent: 1,
+                    createdAt: now.toISOString()
+                };
+                // 上一个：春季学期 year年2月1日~7月31日
+                previousSemester = {
+                    id: this._generateId('sem_prev'),
+                    name: `${year}年春季学期`,
+                    startDate: new Date(year, 1, 1).toISOString(),  // 2月1日
+                    endDate:   new Date(year, 6, 31).toISOString(), // 7月31日
+                    isCurrent: 0,
+                    createdAt: new Date(now.getTime() - 86400000).toISOString()
+                };
+            }
+
+            // 再次检查确认（双重锁定，避免并发竞争导致的重复）
+            const checkRow = await this._getRaw('SELECT COUNT(*) as count FROM semesters');
+            if (checkRow && checkRow.count > 0) return;
 
             // 插入上一个学期
             await this._runRaw(
                 'INSERT INTO semesters (id, name, start_date, end_date, is_current, created_at) VALUES (?, ?, ?, ?, ?, ?)',
                 [previousSemester.id, previousSemester.name, previousSemester.startDate, previousSemester.endDate, previousSemester.isCurrent, previousSemester.createdAt]
             );
-            console.log(`初始化默认学期(上期): ${previousSemester.name}`);
+            console.log(`初始化默认学期(上期): ${previousSemester.name} [${previousSemester.startDate.slice(0,10)} ~ ${previousSemester.endDate.slice(0,10)}]`);
 
             // 插入当前学期
             await this._runRaw(
                 'INSERT INTO semesters (id, name, start_date, end_date, is_current, created_at) VALUES (?, ?, ?, ?, ?, ?)',
                 [currentSemester.id, currentSemester.name, currentSemester.startDate, currentSemester.endDate, currentSemester.isCurrent, currentSemester.createdAt]
             );
-            console.log(`初始化默认学期(当期): ${currentSemester.name}`);
+            console.log(`初始化默认学期(当期): ${currentSemester.name} [${currentSemester.startDate.slice(0,10)} ~ ${currentSemester.endDate.slice(0,10)}]`);
+        }
+    }
+
+    /**
+     * 系统版本校验及数据升级
+     */
+    async _checkAndUpgradeData() {
+        console.log('Checking system data version...');
+        try {
+            const row = await this._getRaw("SELECT value FROM system_config WHERE key = 'system_version'");
+            let currentVersion = row ? row.value : '1.0.0';
+
+            const upgradesDir = path.join(__dirname, 'upgrades');
+            // 确保 upgrades 目录存在
+            try {
+                await fs.access(upgradesDir);
+            } catch (err) {
+                console.log('No upgrades directory found, skipping script-driven upgrades.');
+                return;
+            }
+
+            const files = await fs.readdir(upgradesDir);
+            const scriptFiles = files.filter(f => f.startsWith('v') && f.endsWith('.js'));
+            
+            // 辅助函数：语义化版本比较 (a > b 返回正数, a < b 返回负数)
+            const compareVersions = (v1, v2) => {
+                const parts1 = v1.replace(/^v/, '').split('.').map(Number);
+                const parts2 = v2.replace(/^v/, '').split('.').map(Number);
+                const len = Math.max(parts1.length, parts2.length);
+                for (let i = 0; i < len; i++) {
+                    const p1 = parts1[i] || 0;
+                    const p2 = parts2[i] || 0;
+                    if (p1 !== p2) return p1 - p2;
+                }
+                return 0;
+            };
+
+            // 过滤出版本高于当前数据库版本的脚本并按版本从小到大排序
+            const pendingUpgrades = scriptFiles
+                .map(file => {
+                    const scriptPath = path.join(upgradesDir, file);
+                    // 清除 require 缓存便于动态调试（可选）
+                    delete require.cache[require.resolve(scriptPath)];
+                    const script = require(scriptPath);
+                    return { file, script };
+                })
+                .filter(item => item.script && item.script.version && compareVersions(item.script.version, currentVersion) > 0)
+                .sort((a, b) => compareVersions(a.script.version, b.script.version));
+
+            if (pendingUpgrades.length === 0) {
+                console.log(`System data is up to date (version ${currentVersion}).`);
+                return;
+            }
+
+            console.log(`Found ${pendingUpgrades.length} pending upgrade(s). Current version: ${currentVersion}.`);
+
+            for (const { file, script } of pendingUpgrades) {
+                console.log(`Executing upgrade script for version ${script.version} (${file})...`);
+                if (typeof script.upgrade === 'function') {
+                    await script.upgrade(this);
+                    
+                    // 升级成功后更新版本记录
+                    const now = new Date().toISOString();
+                    await this._runRaw(
+                        'INSERT OR REPLACE INTO system_config (key, value, updated_at) VALUES (?, ?, ?)',
+                        ['system_version', script.version, now]
+                    );
+                    currentVersion = script.version;
+                    console.log(`System version upgraded to ${script.version} successfully.`);
+                } else {
+                    console.warn(`Upgrade script ${file} is missing 'upgrade' function.`);
+                }
+            }
+        } catch (error) {
+            console.error('Error during data upgrade procedure:', error);
+            // 这里非致命异常可让系统强行启动以保障最小业务可用
         }
     }
 
@@ -632,13 +755,24 @@ class DataAccess {
 
     // ==================== 订单操作 ====================
 
-    async getAllOrders(status = null) {
+    async getAllOrders(status = null, semesterId = null) {
         let sql = 'SELECT * FROM orders';
         const params = [];
+        const conditions = [];
+        
         if (status) {
-            sql += ' WHERE status = ?';
+            conditions.push('status = ?');
             params.push(status);
         }
+        if (semesterId) {
+            conditions.push('semester_id = ?');
+            params.push(semesterId);
+        }
+        
+        if (conditions.length > 0) {
+            sql += ' WHERE ' + conditions.join(' AND ');
+        }
+        
         sql += ' ORDER BY reserved_at DESC';
         const rows = await this._all(sql, params);
         return rows.map(row => this._rowToOrder(row));
@@ -649,12 +783,16 @@ class DataAccess {
         return row ? this._rowToOrder(row) : null;
     }
 
-    async getOrdersByStudentId(studentId, status = null) {
+    async getOrdersByStudentId(studentId, status = null, semesterId = null) {
         let sql = 'SELECT * FROM orders WHERE student_id = ?';
         const params = [studentId];
         if (status) {
             sql += ' AND status = ?';
             params.push(status);
+        }
+        if (semesterId) {
+            sql += ' AND semester_id = ?';
+            params.push(semesterId);
         }
         sql += ' ORDER BY reserved_at DESC';
         const rows = await this._all(sql, params);
@@ -665,8 +803,8 @@ class DataAccess {
         const now = new Date().toISOString();
         const id = data.id || this._generateId('order');
         await this._run(
-            'INSERT INTO orders (id, student_id, product_id, status, reserved_at, confirmed_at, cancelled_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [id, data.studentId, data.productId, data.status || 'pending', data.reservedAt || now, data.confirmedAt || null, data.cancelledAt || null]
+            'INSERT INTO orders (id, student_id, semester_id, product_id, status, reserved_at, confirmed_at, cancelled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [id, data.studentId, data.semesterId, data.productId, data.status || 'pending', data.reservedAt || now, data.confirmedAt || null, data.cancelledAt || null]
         );
         return this.getOrderById(id);
     }
@@ -687,6 +825,7 @@ class DataAccess {
         return {
             id: row.id,
             studentId: row.student_id,
+            semesterId: row.semester_id,
             productId: row.product_id,
             status: row.status,
             reservedAt: row.reserved_at,

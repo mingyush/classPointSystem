@@ -81,8 +81,24 @@ class PointsService {
   async addPointRecord(recordData) {
     try {
       await this._ensureInit();
+      
+      // 当未提供 semesterId 时，自动获取并填充当前激活学期ID
+      if (!recordData.semesterId && recordData.type !== 'system') {
+          const activeSemester = await this.dataAccess.getActiveSemester();
+          if (activeSemester) {
+              recordData.semesterId = activeSemester.id;
+          }
+      }
+
+      // 我们强制在此直接合并覆盖，避免模型验证漏过或属性丢失
       const record = new PointRecord(recordData);
       const validation = record.validate();
+      
+      // 直接修改实例中的只读或未绑定属性（由于有些 Model 强约束），保险起见使用基础 data 对象带入 semesterId
+      const finalData = record.toJSON();
+      if (recordData.semesterId) {
+          finalData.semesterId = recordData.semesterId;
+      }
 
       if (!validation.isValid) {
         throw new Error("积分记录验证失败: " + validation.errors.join(", "));
@@ -94,11 +110,14 @@ class PointsService {
         throw new Error(`学生不存在: ${record.studentId}`);
       }
 
-      // 添加记录
-      await this.dataAccess.createPointRecord(record.toJSON());
+      // 添加记录 (使用保证带有 semesterId 的 finalData)
+      const createdRecordData = await this.dataAccess.createPointRecord(finalData);
+      
+      // 通过新数据覆盖旧实例进行返回
+      Object.assign(record, createdRecordData);
 
-      // 更新学生余额
-      const newBalance = student.balance + record.points;
+      // 更新学生余额 (计算总和以避免高并发下的竞态条件覆盖)
+      const newBalance = await this.calculateStudentBalance(record.studentId);
       await this.studentService.updateStudentBalance(record.studentId, newBalance);
 
       console.log(
@@ -455,9 +474,18 @@ class PointsService {
   async getPointRecordsByDateRange(startDate, endDate, studentId = null) {
     try {
       await this._ensureInit();
+      
+      // 默认将查询范围限定在当前激活的学期，以防前台日志统计穿透呈现以往全部老旧流水
+      let targetSemesterId = null;
+      const activeSemester = await this.dataAccess.getActiveSemester();
+      if (activeSemester) {
+        targetSemesterId = activeSemester.id;
+      }
+      
       const records = await this.dataAccess.getPointRecordsByDateRange(
         startDate.toISOString(),
         endDate.toISOString(),
+        targetSemesterId,
         studentId
       );
 

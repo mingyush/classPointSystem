@@ -453,7 +453,8 @@ async function adjustPoints(studentId, points) {
         
     } catch (error) {
         console.error('积分操作失败:', error);
-        showMessage('积分操作失败，请重试', 'error');
+        // 使用服务器返回的具体错误信息，如果没有则使用默认提示
+        showMessage(error.message || '积分操作失败，请重试', 'error');
     } finally {
         // 重新启用按钮
         setTimeout(() => {

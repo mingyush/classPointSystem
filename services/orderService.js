@@ -2,6 +2,7 @@ const DataAccess = require('../utils/dataAccess');
 const { Order } = require('../models/dataModels');
 const StudentService = require('./studentService');
 const ProductService = require('./productService');
+const PointsService = require('./pointsService');
 
 /**
  * 订单服务类
@@ -12,6 +13,7 @@ class OrderService {
         this.dataAccess = new DataAccess();
         this.studentService = new StudentService();
         this.productService = new ProductService();
+        this.pointsService = new PointsService();
     }
 
     /**
@@ -112,9 +114,17 @@ class OrderService {
                 throw new Error('该商品已有待处理的预约');
             }
 
+            // 获取当前活跃学期
+            let targetSemesterId = null;
+            const activeSemester = await this.dataAccess.getActiveSemester();
+            if (activeSemester) {
+                targetSemesterId = activeSemester.id;
+            }
+
             // 创建订单
             const order = new Order({
                 studentId,
+                semesterId: targetSemesterId,
                 productId,
                 status: 'pending'
             });
@@ -125,8 +135,15 @@ class OrderService {
                 throw new Error('订单数据验证失败: ' + validation.errors.join(', '));
             }
 
-            // 冻结学生积分（暂时扣除，但不记录积分变化）
-            await this.studentService.updateStudentBalance(studentId, student.balance - product.price);
+            // 冻结学生积分（变更为增加真实的扣除流水以防重新结账时积分还原）
+            await this.pointsService.addPointRecord({
+                studentId: studentId,
+                semesterId: targetSemesterId,
+                points: -product.price,
+                reason: `预约商品消费：${product.name}`,
+                operatorId: studentId,
+                type: 'subtract'
+            });
 
             // 保存订单
             const created = await this.dataAccess.createOrder(order.toJSON());
@@ -205,8 +222,15 @@ class OrderService {
                 throw new Error('学生或商品信息不存在');
             }
 
-            // 退还冻结的积分
-            await this.studentService.updateStudentBalance(order.studentId, student.balance + product.price);
+            // 退还冻结的积分（补充归还流水，避免硬改账户失真）
+            await this.pointsService.addPointRecord({
+                studentId: order.studentId,
+                semesterId: order.semesterId,
+                points: product.price,
+                reason: `取消商品预约退还：${product.name}`,
+                operatorId: 'system',
+                type: 'add'
+            });
 
             // 更新订单状态
             const updated = await this.dataAccess.updateOrderStatus(orderId, 'cancelled');

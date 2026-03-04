@@ -187,13 +187,53 @@ app.use(notFoundHandler);
         app.use(errorHandler);
 
         // 启动服务器
-        app.listen(PORT, () => {
+        const serverInstance = app.listen(PORT, () => {
             console.log(`班级积分管理系统已启动`);
             console.log(`服务器运行在: http://localhost:${PORT}`);
             console.log(`大屏展示: http://localhost:${PORT}/display`);
             console.log(`教师管理: http://localhost:${PORT}/teacher`);
             console.log(`学生查询: http://localhost:${PORT}/student`);
         });
+
+        // 优雅关机处理
+        const gracefulShutdown = async (signal) => {
+            console.log(`\n[${signal}] 收到关闭信号，准备安全退出服务...`);
+            
+            // 安全锁：10秒后强制退出
+            setTimeout(() => {
+                console.error('[Shutdown] 未能在限定时间内安全关闭，执行强制退出！');
+                process.exit(1);
+            }, 10000).unref();
+
+            // 1. 断开存活的 SSE
+            try {
+                const { closeAllConnections } = require('./api/sse');
+                closeAllConnections();
+            } catch (err) {
+                console.error('[Shutdown] SSE释放抛错:', err);
+            }
+
+            // 2. 关闭 HTTP 监听
+            if (serverInstance) {
+                console.log('[Shutdown] 正在关闭 HTTP 监听服务...');
+                await new Promise(resolve => serverInstance.close(resolve));
+            }
+
+            // 3. 关闭数据库连接
+            try {
+                const DataAccess = require('./utils/dataAccess');
+                await DataAccess.closeAll();
+            } catch (err) {
+                console.error('[Shutdown] 数据库释放抛错:', err);
+            }
+
+            console.log('[Shutdown] 资源已全部释放，进程退出。');
+            process.exit(0);
+        };
+
+        process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+        process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
     } catch (error) {
         console.error('服务器启动失败:', error);
         process.exit(1);

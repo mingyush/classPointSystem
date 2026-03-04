@@ -207,6 +207,7 @@ class Order {
     constructor(data = {}) {
         this.id = data.id || this.generateId();
         this.studentId = data.studentId || '';
+        this.semesterId = data.semesterId || null;
         this.productId = data.productId || '';
         this.status = data.status || 'pending'; // 'pending', 'confirmed', 'cancelled'
         this.reservedAt = data.reservedAt || new Date().toISOString();
@@ -256,6 +257,7 @@ class Order {
         return {
             id: this.id,
             studentId: this.studentId,
+            semesterId: this.semesterId,
             productId: this.productId,
             status: this.status,
             reservedAt: this.reservedAt,
