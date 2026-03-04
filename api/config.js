@@ -3,6 +3,7 @@ const DataAccess = require('../utils/dataAccess');
 const sseService = require('../services/sseService');
 const { authenticateToken, requireTeacher } = require('./auth');
 const { asyncHandler, createError, operationLogger } = require('../middleware/errorHandler');
+const SystemService = require('../services/systemService');
 const router = express.Router();
 
 const dataAccess = new DataAccess();
@@ -253,6 +254,36 @@ router.post('/reset-points/toggle', authenticateToken, requireTeacher,
                 pointsResetEnabled: updatedConfig.pointsResetEnabled
             }
         });
+    })
+);
+
+/**
+ * 修复数据一致性
+ * POST /api/config/fix-data
+ * 需要教师权限 (admin/director)
+ */
+router.post('/fix-data', authenticateToken, requireTeacher,
+    operationLogger('修复数据一致性'),
+    asyncHandler(async (req, res) => {
+        try {
+            // 【修复】3. 复用模块全局的 dataAccess 实例进行数据连接，而不新开隐含 SQLite 连接
+            const systemService = new SystemService(dataAccess);
+
+            const results = await systemService.repairDataConsistency();
+
+            res.json({
+                success: true,
+                message: '数据一致性修复完成',
+                data: results
+            });
+        } catch (error) {
+            console.error('[FixData API] Error:', error);
+            res.status(500).json({
+                success: false,
+                message: '数据一致性修复失败: ' + error.message,
+                stack: error.stack
+            });
+        }
     })
 );
 

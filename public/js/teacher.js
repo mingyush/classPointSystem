@@ -521,6 +521,7 @@ function renderSystemSettings() {
                     <button onclick="exportData()" class="export-btn">导出数据</button>
                     <button onclick="createBackup()" class="backup-btn">创建备份</button>
                     <button onclick="showBackupManager()" class="backup-manager-btn">备份管理</button>
+                    <button onclick="repairDataConsistency()" class="repair-btn">修复数据一致性</button>
                     <button onclick="showResetConfirm()" class="reset-btn danger" id="resetPointsBtn" disabled>重置积分</button>
                 </div>
                 <small>重置积分功能需要在系统参数中启用</small>
@@ -776,13 +777,35 @@ async function adjustPoints(isAdd) {
 
 // 加载最近操作
 async function loadRecentOperations() {
+    if (!selectedStudent) return;
+
     try {
-        // 这里应该调用获取最近操作的API
-        // 暂时显示占位内容
+        const response = await apiRequest(`/api/points/history/${selectedStudent.id}`);
+        const records = response.data?.records || response.records || [];
+        
         const container = document.getElementById('operationsList');
-        container.innerHTML = '<div class="no-data">暂无最近操作记录</div>';
+        
+        if (records.length === 0) {
+            container.innerHTML = '<div class="no-data">暂无最近操作记录</div>';
+            return;
+        }
+
+        container.innerHTML = records.map(record => `
+            <div class="operation-item">
+                <div class="operation-header">
+                    <span class="operation-reason">${record.reason}</span>
+                    <span class="operation-points ${record.type}">${record.points > 0 ? '+' : ''}${record.points}分</span>
+                </div>
+                <div class="operation-footer">
+                    <span class="operation-time">${new Date(record.timestamp).toLocaleString()}</span>
+                    <span class="operation-operator">操作人: ${record.operatorId || '系统'}</span>
+                </div>
+            </div>
+        `).join('');
     } catch (error) {
         console.error('加载操作记录失败:', error);
+        const container = document.getElementById('operationsList');
+        container.innerHTML = '<div class="error">加载失败</div>';
     }
 }
 
@@ -2405,6 +2428,31 @@ async function revokeDirector(id, name) {
             loadTeachersList();
         } catch(e) {
             showMessage(e.message, 'error');
+        }
+    });
+}
+
+// 修复数据一致性
+async function repairDataConsistency() {
+    showConfirmModal('该操作将合并重复的学期并根据流水自动对等学生余额。确定要执行数据一致性修复吗？', async () => {
+        try {
+            showMessage('正在执行数据修复，请稍候...', 'info');
+            const response = await apiRequest('/api/config/fix-data', {
+                method: 'POST'
+            });
+
+            if (response.success) {
+                const results = response.data;
+                const msg = `修复成功！合并学期: ${results.semestersMerged}, 补全记录: ${results.recordsAdded}`;
+                showMessage(msg, 'success');
+                // 重新加载数据
+                await loadInitialData();
+            } else {
+                showMessage(response.message || '修复失败', 'error');
+            }
+        } catch (error) {
+            console.error('修复数据失败:', error);
+            showMessage('修复请求失败: ' + (error.message || '未知错误'), 'error');
         }
     });
 }

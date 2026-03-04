@@ -394,6 +394,42 @@
 .operations-list {
   max-height: 200px;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.operation-item {
+  background: #f1f3f5;
+  padding: 10px;
+  border-radius: 6px;
+  font-size: 0.9em;
+}
+
+.operation-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 5px;
+}
+
+.operation-reason {
+  font-weight: bold;
+}
+
+.operation-points.add {
+  color: #28a745;
+}
+
+.operation-points.subtract,
+.operation-points.purchase {
+  color: #dc3545;
+}
+
+.operation-footer {
+  display: flex;
+  justify-content: space-between;
+  color: #6c757d;
+  font-size: 0.85em;
 }
 
 /* 预约管理样式 */
@@ -610,6 +646,16 @@
 
 .backup-btn {
   background: #6c757d;
+  color: white;
+}
+
+.backup-manager-btn {
+  background: #6f42c1;
+  color: white;
+}
+
+.repair-btn {
+  background: #fd7e14;
   color: white;
 }
 
@@ -1419,10 +1465,11 @@
   width: 100%;
   border-collapse: collapse;
   background: white;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.data-table th, .data-table td {
+.data-table th,
+.data-table td {
   padding: 12px 15px;
   text-align: left;
   border-bottom: 1px solid #ddd;
