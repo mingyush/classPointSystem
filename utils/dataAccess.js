@@ -248,6 +248,31 @@ class DataAccess {
         `);
         console.log('Created semester_archives table');
 
+        // 班级互动表（老师下发 + 班级代表上报/确认）
+        console.log('Creating class_interactions table');
+        await this._runRaw(`
+            CREATE TABLE IF NOT EXISTS class_interactions (
+                id TEXT PRIMARY KEY,
+                type TEXT NOT NULL,
+                status TEXT NOT NULL,
+                title TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_by_role TEXT NOT NULL,
+                created_by_id TEXT NOT NULL,
+                created_by_name TEXT DEFAULT '',
+                class_action_by TEXT,
+                class_action_at TEXT,
+                class_action_note TEXT,
+                teacher_action_by TEXT,
+                teacher_action_at TEXT,
+                teacher_action_note TEXT,
+                deadline_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        `);
+        console.log('Created class_interactions table');
+
         // 创建索引
         console.log('Creating indexes');
         await this._runRaw(`CREATE INDEX IF NOT EXISTS idx_point_records_student_id ON point_records(student_id)`);
@@ -257,6 +282,9 @@ class DataAccess {
             await this._runRaw(`CREATE INDEX IF NOT EXISTS idx_products_is_active ON products(is_active)`);
             await this._runRaw(`CREATE INDEX IF NOT EXISTS idx_semesters_is_current ON semesters(is_current)`);
             await this._runRaw(`CREATE INDEX IF NOT EXISTS idx_semester_archives_semester_id ON semester_archives(semester_id)`);
+            await this._runRaw(`CREATE INDEX IF NOT EXISTS idx_class_interactions_status_type ON class_interactions(status, type)`);
+            await this._runRaw(`CREATE INDEX IF NOT EXISTS idx_class_interactions_created_at ON class_interactions(created_at DESC)`);
+            await this._runRaw(`CREATE INDEX IF NOT EXISTS idx_class_interactions_deadline_at ON class_interactions(deadline_at)`);
             console.log('Indexes created successfully.');
         } catch (e) {
             console.error('_createTables error:', e);
@@ -996,6 +1024,194 @@ class DataAccess {
             catch { config[row.key] = row.value; }
         }
         return config;
+    }
+
+    // ==================== 班级互动操作 ====================
+
+    /**
+     * 查询班级互动列表（支持筛选和分页）
+     */
+    async getClassInteractions(filters = {}, page = 1, pageSize = 20) {
+        const where = [];
+        const params = [];
+
+        if (filters.type) {
+            where.push('type = ?');
+            params.push(filters.type);
+        }
+        if (filters.status) {
+            where.push('status = ?');
+            params.push(filters.status);
+        }
+        if (filters.createdByRole) {
+            where.push('created_by_role = ?');
+            params.push(filters.createdByRole);
+        }
+        if (filters.from) {
+            where.push('created_at >= ?');
+            params.push(filters.from);
+        }
+        if (filters.to) {
+            where.push('created_at <= ?');
+            params.push(filters.to);
+        }
+        if (filters.keyword) {
+            where.push('(title LIKE ? OR content LIKE ?)');
+            const keyword = `%${filters.keyword}%`;
+            params.push(keyword, keyword);
+        }
+
+        const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+        const safePage = Math.max(1, parseInt(page, 10) || 1);
+        const safePageSize = Math.min(100, Math.max(1, parseInt(pageSize, 10) || 20));
+        const offset = (safePage - 1) * safePageSize;
+
+        const rows = await this._all(
+            `SELECT * FROM class_interactions ${whereSql} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+            [...params, safePageSize, offset]
+        );
+
+        return rows.map(row => this._rowToClassInteraction(row));
+    }
+
+    async countClassInteractions(filters = {}) {
+        const where = [];
+        const params = [];
+
+        if (filters.type) {
+            where.push('type = ?');
+            params.push(filters.type);
+        }
+        if (filters.status) {
+            where.push('status = ?');
+            params.push(filters.status);
+        }
+        if (filters.createdByRole) {
+            where.push('created_by_role = ?');
+            params.push(filters.createdByRole);
+        }
+        if (filters.from) {
+            where.push('created_at >= ?');
+            params.push(filters.from);
+        }
+        if (filters.to) {
+            where.push('created_at <= ?');
+            params.push(filters.to);
+        }
+        if (filters.keyword) {
+            where.push('(title LIKE ? OR content LIKE ?)');
+            const keyword = `%${filters.keyword}%`;
+            params.push(keyword, keyword);
+        }
+
+        const whereSql = where.length > 0 ? ` WHERE ${where.join(' AND ')}` : '';
+        const row = await this._get(`SELECT COUNT(*) as count FROM class_interactions${whereSql}`, params);
+        return row ? row.count : 0;
+    }
+
+    async getClassInteractionById(id) {
+        const row = await this._get('SELECT * FROM class_interactions WHERE id = ?', [id]);
+        return row ? this._rowToClassInteraction(row) : null;
+    }
+
+    async createClassInteraction(data) {
+        const now = new Date().toISOString();
+        const id = data.id || this._generateId('interaction');
+        await this._run(
+            `INSERT INTO class_interactions (
+                id, type, status, title, content,
+                created_by_role, created_by_id, created_by_name,
+                class_action_by, class_action_at, class_action_note,
+                teacher_action_by, teacher_action_at, teacher_action_note,
+                deadline_at, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                id,
+                data.type,
+                data.status,
+                data.title,
+                data.content,
+                data.createdByRole,
+                data.createdById,
+                data.createdByName || '',
+                data.classActionBy || null,
+                data.classActionAt || null,
+                data.classActionNote || null,
+                data.teacherActionBy || null,
+                data.teacherActionAt || null,
+                data.teacherActionNote || null,
+                data.deadlineAt || null,
+                data.createdAt || now,
+                data.updatedAt || now
+            ]
+        );
+        return this.getClassInteractionById(id);
+    }
+
+    async updateClassInteraction(id, updateData = {}) {
+        const fields = [];
+        const values = [];
+
+        const fieldMap = {
+            type: 'type',
+            status: 'status',
+            title: 'title',
+            content: 'content',
+            createdByRole: 'created_by_role',
+            createdById: 'created_by_id',
+            createdByName: 'created_by_name',
+            classActionBy: 'class_action_by',
+            classActionAt: 'class_action_at',
+            classActionNote: 'class_action_note',
+            teacherActionBy: 'teacher_action_by',
+            teacherActionAt: 'teacher_action_at',
+            teacherActionNote: 'teacher_action_note',
+            deadlineAt: 'deadline_at',
+            updatedAt: 'updated_at'
+        };
+
+        Object.entries(fieldMap).forEach(([key, dbField]) => {
+            if (updateData[key] !== undefined) {
+                fields.push(`${dbField} = ?`);
+                values.push(updateData[key]);
+            }
+        });
+
+        // 如果外部没有明确传 updatedAt，这里自动更新时间
+        if (updateData.updatedAt === undefined) {
+            fields.push('updated_at = ?');
+            values.push(new Date().toISOString());
+        }
+
+        if (fields.length === 0) {
+            return this.getClassInteractionById(id);
+        }
+
+        values.push(id);
+        await this._run(`UPDATE class_interactions SET ${fields.join(', ')} WHERE id = ?`, values);
+        return this.getClassInteractionById(id);
+    }
+
+    _rowToClassInteraction(row) {
+        return {
+            id: row.id,
+            type: row.type,
+            status: row.status,
+            title: row.title,
+            content: row.content,
+            createdByRole: row.created_by_role,
+            createdById: row.created_by_id,
+            createdByName: row.created_by_name,
+            classActionBy: row.class_action_by,
+            classActionAt: row.class_action_at,
+            classActionNote: row.class_action_note,
+            teacherActionBy: row.teacher_action_by,
+            teacherActionAt: row.teacher_action_at,
+            teacherActionNote: row.teacher_action_note,
+            deadlineAt: row.deadline_at,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at
+        };
     }
 
     // ==================== 工具方法 ====================

@@ -113,6 +113,7 @@ app.use('/api/semesters', require('./api/semesters'));
 app.use('/api/backup', require('./api/backup'));
 app.use('/api/logs', require('./api/logs'));
 app.use('/api/feedback', require('./api/feedback'));
+app.use('/api/interactions', require('./api/interactions'));
 app.use('/api/sse', sseRouter);
 
 // 主页路由

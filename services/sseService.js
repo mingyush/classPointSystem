@@ -179,6 +179,22 @@ class SSEService {
     }
 
     /**
+     * 广播班级互动更新事件
+     */
+    broadcastInteractionUpdate(data) {
+        if (!this.broadcastFunction) {
+            console.warn('SSE广播函数未设置');
+            return;
+        }
+
+        this.broadcastFunction('interaction_updated', {
+            type: 'interaction_update',
+            action: data.action || 'updated',
+            interaction: data.interaction || null
+        });
+    }
+
+    /**
      * 检查SSE服务是否可用
      */
     isAvailable() {

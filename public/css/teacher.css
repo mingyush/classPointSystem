@@ -1511,3 +1511,153 @@
   background: #17a2b8;
   color: white;
 }
+
+/* ==================== 班级互动样式 ==================== */
+.interaction-management {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.interaction-publish,
+.interaction-pending-reports,
+.interaction-history {
+  background: #f8f9fa;
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.interaction-history {
+  grid-column: 1 / -1;
+}
+
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.history-filters {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.interaction-list {
+  max-height: 420px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.interaction-item {
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+  padding: 12px;
+}
+
+.interaction-item h4 {
+  margin: 8px 0;
+}
+
+.interaction-item p {
+  margin: 8px 0;
+  white-space: pre-wrap;
+}
+
+.interaction-item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.interaction-item .meta {
+  color: #6c757d;
+  font-size: 13px;
+}
+
+.interaction-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+.action-btn {
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-weight: 600;
+  cursor: pointer;
+  background: #6c757d;
+  color: #fff;
+}
+
+.action-btn.success {
+  background: #28a745;
+}
+
+.action-btn.warning {
+  background: #ffc107;
+  color: #333;
+}
+
+.action-btn.danger {
+  background: #dc3545;
+}
+
+.tag {
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.type-notice {
+  background: #d1ecf1;
+  color: #0c5460;
+}
+
+.type-task {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.type-report {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-pending {
+  background: #ffe8a1;
+  color: #7a5a00;
+}
+
+.status-confirmed,
+.status-approved {
+  background: #ccf2da;
+  color: #1f6d3d;
+}
+
+.status-rejected {
+  background: #f8d7da;
+  color: #842029;
+}
+
+.status-closed {
+  background: #e2e3e5;
+  color: #41464b;
+}
+
+.history-pagination {
+  margin-top: 12px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+}

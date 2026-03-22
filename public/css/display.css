@@ -415,6 +415,227 @@
     opacity: 0.7;
     font-style: italic;
 }
+
+/* 班级互动区域 */
+.class-interaction-panel {
+    margin-top: 36px;
+    padding: 18px;
+    border-radius: 15px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    text-align: left;
+}
+
+.interaction-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.interaction-panel-header h3 {
+    margin: 0;
+    font-size: 1.5em;
+}
+
+.interaction-identity {
+    display: grid;
+    grid-template-columns: auto minmax(180px, 240px) auto 1fr;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.interaction-identity input {
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+    border-radius: 8px;
+    padding: 8px 10px;
+}
+
+.interaction-identity input::placeholder {
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.interaction-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.interaction-column {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 10px;
+}
+
+.interaction-column h4 {
+    margin: 6px 0 10px;
+}
+
+.interaction-list {
+    max-height: 340px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.interaction-item {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    padding: 10px;
+}
+
+.interaction-item.compact {
+    padding: 8px 10px;
+}
+
+.interaction-item h5 {
+    margin: 8px 0;
+    font-size: 15px;
+}
+
+.interaction-item p {
+    margin: 8px 0;
+    white-space: pre-wrap;
+    opacity: 0.95;
+}
+
+.interaction-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.interaction-item .meta {
+    font-size: 12px;
+    opacity: 0.85;
+}
+
+.interaction-report-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.interaction-report-form input,
+.interaction-report-form textarea,
+.history-filter-group select {
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+    padding: 8px 10px;
+}
+
+.history-filter-group select option {
+    color: #222;
+}
+
+.interaction-report-form textarea::placeholder,
+.interaction-report-form input::placeholder {
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.report-submit-btn,
+.confirm-btn {
+    border: none;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-weight: 700;
+    cursor: pointer;
+    color: #fff;
+}
+
+.report-submit-btn {
+    background: #4ecdc4;
+}
+
+.confirm-btn {
+    margin-top: 8px;
+    background: #f6c945;
+    color: #2b2b2b;
+}
+
+.interaction-history {
+    margin-top: 12px;
+    padding: 10px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.interaction-history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.history-filter-group {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.history-list {
+    max-height: 280px;
+}
+
+.history-pagination {
+    margin-top: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+
+.tag {
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.type-notice {
+    background: rgba(13, 202, 240, 0.25);
+    border: 1px solid rgba(13, 202, 240, 0.45);
+}
+
+.type-task {
+    background: rgba(255, 193, 7, 0.28);
+    border: 1px solid rgba(255, 193, 7, 0.55);
+}
+
+.type-report {
+    background: rgba(78, 205, 196, 0.28);
+    border: 1px solid rgba(78, 205, 196, 0.55);
+}
+
+.status-pending {
+    background: rgba(255, 167, 38, 0.3);
+    border: 1px solid rgba(255, 167, 38, 0.5);
+}
+
+.status-confirmed,
+.status-approved {
+    background: rgba(67, 160, 71, 0.32);
+    border: 1px solid rgba(67, 160, 71, 0.55);
+}
+
+.status-rejected {
+    background: rgba(239, 83, 80, 0.32);
+    border: 1px solid rgba(239, 83, 80, 0.55);
+}
+
+.status-closed {
+    background: rgba(176, 190, 197, 0.35);
+    border: 1px solid rgba(176, 190, 197, 0.6);
+}
 /* 错误和加载状态样式 */
 .error {
     text-align: center;
@@ -645,6 +866,14 @@
         grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
         gap: 15px;
     }
+
+    .interaction-columns {
+        grid-template-columns: 1fr;
+    }
+
+    .interaction-identity {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (max-width: 768px) {
@@ -666,6 +895,11 @@
     .operation-tips {
         flex-direction: column;
         gap: 10px;
+    }
+
+    .interaction-history-header {
+        flex-direction: column;
+        align-items: flex-start;
     }
     
     #displayContent {

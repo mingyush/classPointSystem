@@ -4,6 +4,9 @@ let currentMode = 'normal';
 let refreshInterval;
 let isLoading = false;
 let sseEnabled = false;
+let interactionHistoryPage = 1;
+let interactionHistoryPageSize = 20;
+let interactionHistoryTotalPages = 1;
 
 // 页面初始化
 document.addEventListener('DOMContentLoaded', function() {
@@ -73,6 +76,12 @@ function setupSSEHandlers() {
     // 通知事件
     window.sseClient.on('notification', (data) => {
         showMessage(data.message, data.level, data.duration);
+    });
+
+    // 班级互动事件
+    window.sseClient.on('interaction_updated', (data) => {
+        console.log('收到班级互动更新:', data);
+        handleInteractionUpdate(data);
     });
 
     // 服务器错误事件
@@ -261,11 +270,70 @@ async function loadClassModeContent(container) {
                     </div>
                 </div>
                 <div class="student-grid" id="studentGrid"></div>
+
+                <section class="class-interaction-panel">
+                    <div class="interaction-panel-header">
+                        <h3>班级互动</h3>
+                        <button onclick="refreshClassInteractions(1)" class="refresh-btn">刷新互动</button>
+                    </div>
+
+                    <div class="interaction-identity">
+                        <label for="classActorStudentId">班级代表学号：</label>
+                        <input id="classActorStudentId" type="text" placeholder="请输入学号，例如 0501">
+                        <label for="classActionNote">备注：</label>
+                        <input id="classActionNote" type="text" placeholder="可选，如：作业已收齐">
+                    </div>
+
+                    <div class="interaction-columns">
+                        <div class="interaction-column">
+                            <h4>待确认通知/任务</h4>
+                            <div id="displayUnconfirmedList" class="interaction-list"></div>
+                        </div>
+
+                        <div class="interaction-column">
+                            <h4>班级上报</h4>
+                            <form class="interaction-report-form" onsubmit="submitClassReport(event)">
+                                <input id="reportTitleInput" type="text" maxlength="80" placeholder="上报标题（可选）">
+                                <textarea id="reportContentInput" rows="4" maxlength="500" placeholder="请输入上报内容" required></textarea>
+                                <button type="submit" class="report-submit-btn">提交上报</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="interaction-history">
+                        <div class="interaction-history-header">
+                            <h4>历史互动</h4>
+                            <div class="history-filter-group">
+                                <select id="displayHistoryType" onchange="refreshClassInteractions(1)">
+                                    <option value="">全部类型</option>
+                                    <option value="notice">通知</option>
+                                    <option value="task">任务</option>
+                                    <option value="report">上报</option>
+                                </select>
+                                <select id="displayHistoryStatus" onchange="refreshClassInteractions(1)">
+                                    <option value="">全部状态</option>
+                                    <option value="pending">待处理</option>
+                                    <option value="confirmed">已确认</option>
+                                    <option value="approved">已通过</option>
+                                    <option value="rejected">已驳回</option>
+                                    <option value="closed">已关闭</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="displayHistoryList" class="interaction-list history-list"></div>
+                        <div class="history-pagination">
+                            <button onclick="changeDisplayHistoryPage(-1)" class="refresh-btn">上一页</button>
+                            <span id="displayHistoryPageInfo">第 1 / 1 页</span>
+                            <button onclick="changeDisplayHistoryPage(1)" class="refresh-btn">下一页</button>
+                        </div>
+                    </div>
+                </section>
             </div>
         `;
         
         const students = response.students || response.data?.students || [];
         renderStudentGrid(students);
+        await refreshClassInteractions(1);
         
         // 启动自动刷新学生数据
         window.dataCacheService.startAutoRefresh(
@@ -490,6 +558,192 @@ async function refreshClassMode() {
     if (currentMode === 'class') {
         await loadDisplayContent();
     }
+}
+
+function getClassActorStudentId() {
+    const studentId = document.getElementById('classActorStudentId')?.value?.trim();
+    if (!studentId) {
+        showMessage('请先输入班级代表学号', 'warning');
+        return null;
+    }
+    return studentId;
+}
+
+function getClassActionNote() {
+    return document.getElementById('classActionNote')?.value?.trim() || '';
+}
+
+async function refreshClassInteractions(page = interactionHistoryPage) {
+    interactionHistoryPage = Math.max(1, parseInt(page, 10) || 1);
+
+    const type = document.getElementById('displayHistoryType')?.value || '';
+    const status = document.getElementById('displayHistoryStatus')?.value || '';
+    const historyQuery = new URLSearchParams({
+        page: String(interactionHistoryPage),
+        pageSize: String(interactionHistoryPageSize)
+    });
+    if (type) historyQuery.set('type', type);
+    if (status) historyQuery.set('status', status);
+
+    try {
+        const [unconfirmedResp, historyResp] = await Promise.all([
+            apiRequest('/api/interactions/unconfirmed?limit=50'),
+            apiRequest(`/api/interactions/history?${historyQuery.toString()}`)
+        ]);
+
+        const unconfirmedList = unconfirmedResp.data || [];
+        const historyData = historyResp.data || {};
+        const historyList = historyData.interactions || [];
+        const pagination = historyData.pagination || {};
+        interactionHistoryTotalPages = pagination.pages || 1;
+
+        renderDisplayUnconfirmedInteractions(unconfirmedList);
+        renderDisplayInteractionHistory(historyList);
+        updateDisplayHistoryPageInfo();
+    } catch (error) {
+        console.error('加载班级互动失败:', error);
+        showMessage(error.message || '加载班级互动失败', 'error');
+    }
+}
+
+function renderDisplayUnconfirmedInteractions(list) {
+    const container = document.getElementById('displayUnconfirmedList');
+    if (!container) return;
+
+    if (!list || list.length === 0) {
+        container.innerHTML = '<div class="no-data">当前没有待确认互动</div>';
+        return;
+    }
+
+    container.innerHTML = list.map(item => `
+        <div class="interaction-item">
+            <div class="interaction-top">
+                <span class="tag type-${item.type}">${displayInteractionTypeText(item.type)}</span>
+                <span class="tag status-${item.status}">${displayInteractionStatusText(item.status)}</span>
+            </div>
+            <h5>${escapeDisplayInteractionText(item.title)}</h5>
+            <p>${escapeDisplayInteractionText(item.content)}</p>
+            <div class="meta">发布时间：${formatDate(item.createdAt)}</div>
+            ${item.deadlineAt ? `<div class="meta">截止时间：${formatDate(item.deadlineAt)}</div>` : ''}
+            <button class="confirm-btn" onclick="confirmDisplayInteraction('${item.id}')">班级确认</button>
+        </div>
+    `).join('');
+}
+
+async function confirmDisplayInteraction(id) {
+    const studentId = getClassActorStudentId();
+    if (!studentId) return;
+
+    try {
+        await apiRequest(`/api/interactions/${id}/class-confirm`, {
+            method: 'POST',
+            body: JSON.stringify({
+                studentId,
+                note: getClassActionNote()
+            })
+        });
+        showMessage('已确认', 'success');
+        await refreshClassInteractions(interactionHistoryPage);
+    } catch (error) {
+        console.error('班级确认失败:', error);
+        showMessage(error.message || '确认失败', 'error');
+    }
+}
+
+async function submitClassReport(event) {
+    event.preventDefault();
+    const studentId = getClassActorStudentId();
+    if (!studentId) return;
+
+    const title = document.getElementById('reportTitleInput')?.value?.trim();
+    const content = document.getElementById('reportContentInput')?.value?.trim();
+    if (!content) {
+        showMessage('请填写上报内容', 'warning');
+        return;
+    }
+
+    try {
+        await apiRequest('/api/interactions/report', {
+            method: 'POST',
+            body: JSON.stringify({
+                studentId,
+                title: title || '班级上报',
+                content
+            })
+        });
+        showMessage('上报已提交，等待老师确认', 'success');
+        const contentInput = document.getElementById('reportContentInput');
+        const titleInput = document.getElementById('reportTitleInput');
+        if (contentInput) contentInput.value = '';
+        if (titleInput) titleInput.value = '';
+        await refreshClassInteractions(1);
+    } catch (error) {
+        console.error('上报失败:', error);
+        showMessage(error.message || '上报失败', 'error');
+    }
+}
+
+function renderDisplayInteractionHistory(list) {
+    const container = document.getElementById('displayHistoryList');
+    if (!container) return;
+
+    if (!list || list.length === 0) {
+        container.innerHTML = '<div class="no-data">暂无历史互动</div>';
+        return;
+    }
+
+    container.innerHTML = list.map(item => `
+        <div class="interaction-item compact">
+            <div class="interaction-top">
+                <span class="tag type-${item.type}">${displayInteractionTypeText(item.type)}</span>
+                <span class="tag status-${item.status}">${displayInteractionStatusText(item.status)}</span>
+                <span class="meta">${formatDate(item.createdAt)}</span>
+            </div>
+            <h5>${escapeDisplayInteractionText(item.title)}</h5>
+            <p>${escapeDisplayInteractionText(item.content)}</p>
+            ${item.classActionBy ? `<div class="meta">班级确认：${escapeDisplayInteractionText(item.classActionBy)}</div>` : ''}
+            ${item.teacherActionNote ? `<div class="meta">教师备注：${escapeDisplayInteractionText(item.teacherActionNote)}</div>` : ''}
+        </div>
+    `).join('');
+}
+
+function updateDisplayHistoryPageInfo() {
+    const el = document.getElementById('displayHistoryPageInfo');
+    if (!el) return;
+    el.textContent = `第 ${interactionHistoryPage} / ${interactionHistoryTotalPages} 页`;
+}
+
+function changeDisplayHistoryPage(delta) {
+    const nextPage = interactionHistoryPage + delta;
+    if (nextPage < 1 || nextPage > interactionHistoryTotalPages) return;
+    refreshClassInteractions(nextPage);
+}
+
+function displayInteractionTypeText(type) {
+    if (type === 'notice') return '通知';
+    if (type === 'task') return '任务';
+    if (type === 'report') return '上报';
+    return type;
+}
+
+function displayInteractionStatusText(status) {
+    const map = {
+        pending: '待处理',
+        confirmed: '已确认',
+        approved: '已通过',
+        rejected: '已驳回',
+        closed: '已关闭'
+    };
+    return map[status] || status;
+}
+
+function escapeDisplayInteractionText(text) {
+    return String(text || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 // 切换显示模式
@@ -744,6 +998,29 @@ function handleDataReset(data) {
     // 重新加载所有数据
     loadDisplayContent();
     showMessage(data.message || '数据已重置', 'warning');
+}
+
+/**
+ * 处理班级互动更新事件
+ */
+function handleInteractionUpdate(data) {
+    if (currentMode !== 'class') {
+        return;
+    }
+
+    refreshClassInteractions(interactionHistoryPage);
+
+    if (data && data.action) {
+        const actionTextMap = {
+            published: '老师发布了新互动',
+            class_confirmed: '班级已确认互动',
+            reported: '班级提交了新上报',
+            teacher_reviewed: '老师已处理上报',
+            closed: '互动已关闭'
+        };
+        const text = actionTextMap[data.action] || '班级互动已更新';
+        showMessage(text, 'info', 1800);
+    }
 }
 
 // 显示加载状态

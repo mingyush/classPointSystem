@@ -5,6 +5,10 @@ let selectedStudent = null;
 let students = [];
 let products = [];
 let orders = [];
+let interactions = [];
+let interactionHistoryPage = 1;
+let interactionHistoryPageSize = 20;
+let interactionHistoryTotalPages = 1;
 
 // 页面初始化
 document.addEventListener('DOMContentLoaded', function () {
@@ -192,18 +196,20 @@ async function toggleSystemMode() {
 async function loadInitialData() {
     try {
         // 并行加载所有数据
-        const [studentsResponse, productsResponse, ordersResponse] = await Promise.all([
+        const [studentsResponse, productsResponse, ordersResponse, interactionsResponse] = await Promise.all([
             apiRequest('/api/students').catch(() => ({ students: [] })),
             apiRequest('/api/products').catch(() => ({ products: [] })),
-            apiRequest('/api/orders/pending').catch(() => ({ orders: [] }))
+            apiRequest('/api/orders/pending').catch(() => ({ orders: [] })),
+            apiRequest('/api/interactions/list?page=1&pageSize=100').catch(() => ({ data: { interactions: [] } }))
         ]);
 
         students = studentsResponse.data?.students || studentsResponse.students || [];
         products = productsResponse.data?.products || productsResponse.products || [];
         orders = ordersResponse.data?.orders || ordersResponse.orders || [];
+        interactions = interactionsResponse.data?.interactions || [];
 
         // 保存到本地存储
-        storage.set('teacherData', { students, products, orders });
+        storage.set('teacherData', { students, products, orders, interactions });
 
     } catch (error) {
         console.error('加载数据失败:', error);
@@ -213,6 +219,7 @@ async function loadInitialData() {
             students = cachedData.students || [];
             products = cachedData.products || [];
             orders = cachedData.orders || [];
+            interactions = cachedData.interactions || [];
         }
     }
 }
@@ -229,6 +236,7 @@ function renderTeacherContent() {
             <button class="tab-button" onclick="switchTab(event, 'students')">学生管理</button>
             <button class="tab-button" onclick="switchTab(event, 'products')">商品管理</button>
             <button class="tab-button" onclick="switchTab(event, 'orders')">预约管理</button>
+            <button class="tab-button" onclick="switchTab(event, 'interaction')">班级互动</button>
             <button class="tab-button" onclick="switchTab(event, 'semesters')">学期管理</button>
             <button class="tab-button" onclick="switchTab(event, 'system')">系统设置</button>
             ${canManageTeachers ? `<button class="tab-button" onclick="switchTab(event, 'teachers')">教师管理</button>` : ''}
@@ -248,6 +256,10 @@ function renderTeacherContent() {
         
         <div id="ordersTab" class="tab-content">
             ${renderOrdersManagement()}
+        </div>
+
+        <div id="interactionTab" class="tab-content">
+            ${renderInteractionManagement()}
         </div>
         
         <div id="semestersTab" class="tab-content">
@@ -277,6 +289,12 @@ function renderTeacherContent() {
 
 // 切换标签页
 function switchTab(evt, tabName) {
+    // 兼容旧调用：switchTab('points')
+    if (typeof evt === 'string' && tabName === undefined) {
+        tabName = evt;
+        evt = null;
+    }
+
     // 处理未传 event 的兼容（如果还有旧代码调用）
     const targetEl = evt ? evt.target : document.querySelector(`button[onclick="switchTab(event, '${tabName}')"]`);
 
@@ -307,6 +325,9 @@ function switchTab(evt, tabName) {
             break;
         case 'orders':
             initOrdersManagement();
+            break;
+        case 'interaction':
+            initInteractionManagement();
             break;
         case 'system':
             initSystemSettings();
@@ -441,6 +462,76 @@ function renderOrdersManagement() {
             
             <div class="orders-list" id="ordersList">
                 <!-- 预约列表将在这里动态生成 -->
+            </div>
+        </div>
+    `;
+}
+
+// 渲染班级互动管理
+function renderInteractionManagement() {
+    return `
+        <h2>班级互动</h2>
+        <div class="interaction-management">
+            <div class="interaction-publish">
+                <h3>老师下发（通知/任务）</h3>
+                <form onsubmit="publishInteraction(event)">
+                    <div class="form-group">
+                        <label>类型</label>
+                        <select id="interactionType" required>
+                            <option value="notice">通知</option>
+                            <option value="task">任务</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>标题</label>
+                        <input type="text" id="interactionTitle" maxlength="80" required placeholder="例如：今日作业收齐确认">
+                    </div>
+                    <div class="form-group">
+                        <label>内容</label>
+                        <textarea id="interactionContent" rows="4" maxlength="500" required placeholder="请输入通知或任务的具体内容"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>截止时间（可选）</label>
+                        <input type="datetime-local" id="interactionDeadlineAt">
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="submit-btn">发布</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="interaction-pending-reports">
+                <h3>学生上报待处理</h3>
+                <div id="pendingReportsList" class="interaction-list"></div>
+            </div>
+
+            <div class="interaction-history">
+                <div class="history-header">
+                    <h3>历史互动</h3>
+                    <div class="history-filters">
+                        <select id="interactionHistoryType" onchange="refreshInteractionHistory(1)">
+                            <option value="">全部类型</option>
+                            <option value="notice">通知</option>
+                            <option value="task">任务</option>
+                            <option value="report">上报</option>
+                        </select>
+                        <select id="interactionHistoryStatus" onchange="refreshInteractionHistory(1)">
+                            <option value="">全部状态</option>
+                            <option value="pending">待处理</option>
+                            <option value="confirmed">已确认</option>
+                            <option value="approved">已通过</option>
+                            <option value="rejected">已驳回</option>
+                            <option value="closed">已关闭</option>
+                        </select>
+                        <button type="button" class="action-btn" onclick="refreshInteractionHistory(1)">刷新</button>
+                    </div>
+                </div>
+                <div id="interactionHistoryList" class="interaction-list"></div>
+                <div class="history-pagination">
+                    <button type="button" class="action-btn" onclick="changeInteractionHistoryPage(-1)">上一页</button>
+                    <span id="interactionHistoryPageInfo">第 1 / 1 页</span>
+                    <button type="button" class="action-btn" onclick="changeInteractionHistoryPage(1)">下一页</button>
+                </div>
             </div>
         </div>
     `;
@@ -600,6 +691,217 @@ function renderSystemSettings() {
             </div>
         </div>
     `;
+}
+
+// 初始化班级互动
+async function initInteractionManagement() {
+    await refreshInteractionData();
+    await refreshInteractionHistory(1);
+}
+
+async function refreshInteractionData() {
+    try {
+        const response = await apiRequest('/api/interactions/list?page=1&pageSize=100');
+        interactions = response.data?.interactions || [];
+        renderPendingReports();
+        storage.set('teacherData', { students, products, orders, interactions });
+    } catch (error) {
+        console.error('加载互动数据失败:', error);
+        showMessage('加载互动数据失败', 'error');
+    }
+}
+
+async function publishInteraction(event) {
+    event.preventDefault();
+
+    const type = document.getElementById('interactionType')?.value;
+    const title = document.getElementById('interactionTitle')?.value.trim();
+    const content = document.getElementById('interactionContent')?.value.trim();
+    const deadlineRaw = document.getElementById('interactionDeadlineAt')?.value;
+
+    if (!type || !title || !content) {
+        showMessage('请完整填写互动信息', 'warning');
+        return;
+    }
+
+    try {
+        // datetime-local 是本地时间字符串，这里统一转为 ISO 便于后端和大屏渲染。
+        const deadlineAt = deadlineRaw ? new Date(deadlineRaw).toISOString() : null;
+        await apiRequest('/api/interactions/publish', {
+            method: 'POST',
+            body: JSON.stringify({ type, title, content, deadlineAt })
+        });
+        showMessage('发布成功', 'success');
+
+        document.getElementById('interactionTitle').value = '';
+        document.getElementById('interactionContent').value = '';
+        document.getElementById('interactionDeadlineAt').value = '';
+
+        await refreshInteractionData();
+        await refreshInteractionHistory(1);
+    } catch (error) {
+        console.error('发布互动失败:', error);
+        showMessage(error.message || '发布失败', 'error');
+    }
+}
+
+function renderPendingReports() {
+    const container = document.getElementById('pendingReportsList');
+    if (!container) return;
+
+    const pendingReports = interactions.filter(item => item.type === 'report' && item.status === 'pending');
+    if (pendingReports.length === 0) {
+        container.innerHTML = '<div class="no-data">暂无待处理上报</div>';
+        return;
+    }
+
+    container.innerHTML = pendingReports.map(item => `
+        <div class="interaction-item">
+            <div class="interaction-item-header">
+                <span class="tag type-report">上报</span>
+                <span class="tag status-pending">待审核</span>
+                <span class="meta">${formatDate(item.createdAt)}</span>
+            </div>
+            <h4>${escapeInteractionText(item.title)}</h4>
+            <p>${escapeInteractionText(item.content)}</p>
+            <div class="meta">上报人：${escapeInteractionText(item.createdByName || item.createdById)}</div>
+            <div class="interaction-actions">
+                <button class="action-btn success" onclick="reviewReportInteraction('${item.id}', 'approved')">通过</button>
+                <button class="action-btn danger" onclick="reviewReportInteraction('${item.id}', 'rejected')">驳回</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function reviewReportInteraction(id, status) {
+    const note = status === 'rejected' ? prompt('请输入驳回原因（可选）：', '') : '';
+    try {
+        await apiRequest(`/api/interactions/${id}/teacher-review`, {
+            method: 'POST',
+            body: JSON.stringify({
+                status,
+                note: note || ''
+            })
+        });
+        showMessage(status === 'approved' ? '已审核通过' : '已驳回', 'success');
+        await refreshInteractionData();
+        await refreshInteractionHistory(interactionHistoryPage);
+    } catch (error) {
+        console.error('审核上报失败:', error);
+        showMessage(error.message || '审核失败', 'error');
+    }
+}
+
+async function closeTeacherInteraction(id) {
+    try {
+        await apiRequest(`/api/interactions/${id}/close`, {
+            method: 'POST',
+            body: JSON.stringify({})
+        });
+        showMessage('已关闭互动', 'success');
+        await refreshInteractionData();
+        await refreshInteractionHistory(interactionHistoryPage);
+    } catch (error) {
+        console.error('关闭互动失败:', error);
+        showMessage(error.message || '关闭失败', 'error');
+    }
+}
+
+async function refreshInteractionHistory(page = 1) {
+    const type = document.getElementById('interactionHistoryType')?.value || '';
+    const status = document.getElementById('interactionHistoryStatus')?.value || '';
+
+    interactionHistoryPage = Math.max(1, page);
+    const query = new URLSearchParams({
+        page: String(interactionHistoryPage),
+        pageSize: String(interactionHistoryPageSize)
+    });
+    if (type) query.set('type', type);
+    if (status) query.set('status', status);
+
+    try {
+        const response = await apiRequest(`/api/interactions/list?${query.toString()}`);
+        const list = response.data?.interactions || [];
+        const pagination = response.data?.pagination || {};
+        interactionHistoryTotalPages = pagination.pages || 1;
+
+        renderInteractionHistoryList(list);
+        updateInteractionHistoryPager();
+    } catch (error) {
+        console.error('加载互动历史失败:', error);
+        showMessage(error.message || '加载历史失败', 'error');
+    }
+}
+
+function renderInteractionHistoryList(list) {
+    const container = document.getElementById('interactionHistoryList');
+    if (!container) return;
+
+    if (!list || list.length === 0) {
+        container.innerHTML = '<div class="no-data">暂无历史互动记录</div>';
+        return;
+    }
+
+    container.innerHTML = list.map(item => {
+        const canClose = (item.type === 'notice' || item.type === 'task') && item.status !== 'closed';
+        return `
+            <div class="interaction-item">
+                <div class="interaction-item-header">
+                    <span class="tag type-${item.type}">${interactionTypeText(item.type)}</span>
+                    <span class="tag status-${item.status}">${interactionStatusText(item.status)}</span>
+                    <span class="meta">${formatDate(item.createdAt)}</span>
+                </div>
+                <h4>${escapeInteractionText(item.title)}</h4>
+                <p>${escapeInteractionText(item.content)}</p>
+                <div class="meta">发布/上报：${escapeInteractionText(item.createdByName || item.createdById)}</div>
+                ${item.classActionBy ? `<div class="meta">班级确认：${escapeInteractionText(item.classActionBy)} ${item.classActionAt ? `(${formatDate(item.classActionAt)})` : ''}</div>` : ''}
+                ${item.teacherActionBy ? `<div class="meta">教师处理：${escapeInteractionText(item.teacherActionBy)} ${item.teacherActionAt ? `(${formatDate(item.teacherActionAt)})` : ''}</div>` : ''}
+                ${item.teacherActionNote ? `<div class="meta">教师备注：${escapeInteractionText(item.teacherActionNote)}</div>` : ''}
+                ${canClose ? `<div class="interaction-actions"><button class="action-btn warning" onclick="closeTeacherInteraction('${item.id}')">关闭</button></div>` : ''}
+            </div>
+        `;
+    }).join('');
+}
+
+function updateInteractionHistoryPager() {
+    const info = document.getElementById('interactionHistoryPageInfo');
+    if (!info) return;
+    info.textContent = `第 ${interactionHistoryPage} / ${interactionHistoryTotalPages} 页`;
+}
+
+function changeInteractionHistoryPage(delta) {
+    const nextPage = interactionHistoryPage + delta;
+    if (nextPage < 1 || nextPage > interactionHistoryTotalPages) {
+        return;
+    }
+    refreshInteractionHistory(nextPage);
+}
+
+function interactionTypeText(type) {
+    if (type === 'notice') return '通知';
+    if (type === 'task') return '任务';
+    if (type === 'report') return '上报';
+    return type;
+}
+
+function interactionStatusText(status) {
+    const map = {
+        pending: '待处理',
+        confirmed: '已确认',
+        approved: '已通过',
+        rejected: '已驳回',
+        closed: '已关闭'
+    };
+    return map[status] || status;
+}
+
+function escapeInteractionText(text) {
+    return String(text || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 // 初始化积分管理

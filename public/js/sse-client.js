@@ -229,6 +229,15 @@ class SSEClient {
                 this.emit('notification', data);
             }
         });
+
+        // 班级互动事件
+        this.eventSource.addEventListener('interaction_updated', (event) => {
+            const data = safeParseData(event, 'interaction_updated');
+            if (data) {
+                console.log('班级互动更新:', data);
+                this.emit('interaction_updated', data);
+            }
+        });
     }
 
     /**
