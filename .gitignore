@@ -84,6 +84,8 @@ config/base.yaml
 
 AGENTS.md
 
+data/
+
 logs/
 backups/
 exports/

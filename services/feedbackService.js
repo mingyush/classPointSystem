@@ -32,8 +32,8 @@ class FeedbackService {
                 throw new Error('反馈数据验证失败: ' + validation.errors.join(', '));
             }
 
-            // 保存到数据文件
-            await this.dataAccess.save(feedback.id, feedback.toJSON(), this.key);
+            // 保存到数据库
+            await this.dataAccess.createFeedback(feedback.toJSON());
 
             console.log(`反馈创建成功: ${feedback.id}`);
             return feedback;
@@ -52,7 +52,7 @@ class FeedbackService {
      */
     async getFeedbackList(filters = {}, page = 1, limit = 20) {
         try {
-            let feedbacks = await this.dataAccess.loadAll(this.key);
+            let feedbacks = await this.dataAccess.getAllFeedbacks();
 
             // 应用过滤条件
             if (filters.category) {
@@ -97,7 +97,7 @@ class FeedbackService {
      */
     async getFeedbackCount(filters = {}) {
         try {
-            let feedbacks = await this.dataAccess.loadAll(this.key);
+            let feedbacks = await this.dataAccess.getAllFeedbacks();
 
             // 应用过滤条件
             if (filters.category) {
@@ -134,7 +134,7 @@ class FeedbackService {
      */
     async getFeedbackById(id) {
         try {
-            const feedbackData = await this.dataAccess.load(id);
+            const feedbackData = await this.dataAccess.getFeedbackById(id);
             return feedbackData ? new Feedback(feedbackData) : null;
         } catch (error) {
             console.error(`获取反馈失败 (ID: ${id}):`, error);
@@ -155,25 +155,12 @@ class FeedbackService {
                 throw new Error('反馈不存在');
             }
 
-            // 创建更新后的反馈对象
-            const updatedFeedback = new Feedback({
-                ...existingFeedback.toJSON(),
-                ...updateData,
-                id: existingFeedback.id, // 确保ID不变
-                updatedAt: new Date().toISOString()
-            });
+            // 保存到数据库
+            await this.dataAccess.updateFeedback(id, updateData);
+            const refetched = await this.getFeedbackById(id);
 
-            // 验证数据
-            const validation = updatedFeedback.validate();
-            if (!validation.isValid) {
-                throw new Error('反馈数据验证失败: ' + validation.errors.join(', '));
-            }
-
-            // 保存到数据文件
-            await this.dataAccess.save(updatedFeedback.id, updatedFeedback.toJSON());
-
-            console.log(`反馈更新成功: ${updatedFeedback.id}`);
-            return updatedFeedback;
+            console.log(`反馈更新成功: ${id}`);
+            return refetched;
         } catch (error) {
             console.error(`更新反馈失败 (ID: ${id}):`, error);
             throw error;
@@ -192,7 +179,7 @@ class FeedbackService {
                 return false;
             }
 
-            await this.dataAccess.remove(id);
+            await this.dataAccess.deleteFeedback(id);
             console.log(`反馈删除成功: ${id}`);
             return true;
         } catch (error) {
@@ -207,7 +194,7 @@ class FeedbackService {
      */
     async getFeedbackStats() {
         try {
-            const allFeedbacks = await this.dataAccess.loadAll();
+            const allFeedbacks = await this.dataAccess.getAllFeedbacks();
             
             if (allFeedbacks.length === 0) {
                 return {

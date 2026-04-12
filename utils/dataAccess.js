@@ -1213,6 +1213,110 @@ class DataAccess {
             updatedAt: row.updated_at
         };
     }
+    // ==================== 反馈操作 (Feedbacks) ====================
+
+    async getAllFeedbacks() {
+        const rows = await this._all('SELECT * FROM feedbacks ORDER BY created_at DESC');
+        return rows.map(row => this._rowToFeedback(row));
+    }
+
+    async getFeedbackById(id) {
+        const row = await this._get('SELECT * FROM feedbacks WHERE id = ?', [id]);
+        return row ? this._rowToFeedback(row) : null;
+    }
+
+    async createFeedback(data) {
+        const now = new Date().toISOString();
+        const id = data.id || this._generateId('feedback');
+        
+        let tagsStr = '[]';
+        if (Array.isArray(data.tags)) {
+            tagsStr = JSON.stringify(data.tags);
+        } else if (typeof data.tags === 'string') {
+            tagsStr = data.tags;
+        }
+
+        await this._run(
+            `INSERT INTO feedbacks (
+                id, title, content, category, priority, status, 
+                submitter_type, submitter_id, submitter_name, contact_info, 
+                is_public, tags, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                id, data.title || '', data.content || '', data.category || 'general', 
+                data.priority || 'medium', data.status || 'open', data.submitterType || 'student', 
+                data.submitterId || null, data.submitterName || '匿名用户', data.contactInfo || '', 
+                data.isPublic ? 1 : 0, tagsStr, data.createdAt || now, data.updatedAt || now
+            ]
+        );
+        return this.getFeedbackById(id);
+    }
+
+    async updateFeedback(id, updateData) {
+        const fields = [];
+        const values = [];
+        
+        const fieldMap = {
+            title: 'title', content: 'content', category: 'category', 
+            priority: 'priority', status: 'status', submitterType: 'submitter_type',
+            submitterId: 'submitter_id', submitterName: 'submitter_name',
+            contactInfo: 'contact_info', isPublic: 'is_public', tags: 'tags',
+            updatedAt: 'updated_at'
+        };
+
+        for (const [key, dbField] of Object.entries(fieldMap)) {
+            if (updateData[key] !== undefined) {
+                fields.push(`${dbField} = ?`);
+                if (key === 'isPublic') {
+                    values.push(updateData[key] ? 1 : 0);
+                } else if (key === 'tags') {
+                    values.push(Array.isArray(updateData[key]) ? JSON.stringify(updateData[key]) : updateData[key]);
+                } else {
+                    values.push(updateData[key]);
+                }
+            }
+        }
+
+        if (fields.length === 0) return this.getFeedbackById(id);
+        
+        if (updateData.updatedAt === undefined) {
+            fields.push('updated_at = ?');
+            values.push(new Date().toISOString());
+        }
+
+        values.push(id);
+        await this._run(`UPDATE feedbacks SET ${fields.join(', ')} WHERE id = ?`, values);
+        return this.getFeedbackById(id);
+    }
+
+    async deleteFeedback(id) {
+        await this._run('DELETE FROM feedbacks WHERE id = ?', [id]);
+        return true;
+    }
+
+    _rowToFeedback(row) {
+        let parsedTags = [];
+        try {
+            parsedTags = JSON.parse(row.tags);
+        } catch (e) {}
+        
+        return {
+            id: row.id,
+            title: row.title,
+            content: row.content,
+            category: row.category,
+            priority: row.priority,
+            status: row.status,
+            submitterType: row.submitter_type,
+            submitterId: row.submitter_id,
+            submitterName: row.submitter_name,
+            contactInfo: row.contact_info,
+            isPublic: row.is_public === 1,
+            tags: parsedTags,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at
+        };
+    }
 
     // ==================== 工具方法 ====================
 
